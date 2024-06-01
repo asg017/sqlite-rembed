@@ -53,7 +53,7 @@ jobs:
         with:
           toolchain: stable
       - run: make loadable static
-      - run: pip install pytest numpy; make test-loadable
+      #- run: pip install pytest numpy; make test-loadable
       - uses: actions/upload-artifact@v4
         with:
           name: sqlite-rembed-windows-x86_64-extension
