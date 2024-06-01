@@ -32,8 +32,8 @@ prefix=dist
 TARGET_LOADABLE=$(prefix)/debug/rembed0.$(LOADABLE_EXTENSION)
 TARGET_LOADABLE_RELEASE=$(prefix)/release/rembed0.$(LOADABLE_EXTENSION)
 
-TARGET_STATIC=$(prefix)/debug/libsqlite_rembed0.$(STATIC_EXTENSION)
-TARGET_STATIC_RELEASE=$(prefix)/release/libsqlite_rembed0.$(STATIC_EXTENSION)
+TARGET_STATIC=$(prefix)/debug/$(LIBRARY_PREFIX)sqlite_rembed0.$(STATIC_EXTENSION)
+TARGET_STATIC_RELEASE=$(prefix)/release/$(LIBRARY_PREFIX)sqlite_rembed0.$(STATIC_EXTENSION)
 
 TARGET_H=$(prefix)/debug/sqlite-rembed.h
 TARGET_H_RELEASE=$(prefix)/release/sqlite-rembed.h
@@ -47,14 +47,14 @@ ifdef target
 CARGO_TARGET=--target=$(target)
 BUILT_LOCATION=target/$(target)/debug/$(LIBRARY_PREFIX)sqlite_rembed.$(LOADABLE_EXTENSION)
 BUILT_LOCATION_RELEASE=target/$(target)/release/$(LIBRARY_PREFIX)sqlite_rembed.$(LOADABLE_EXTENSION)
-BUILT_LOCATION_STATIC=target/$(target)/debug/libsqlite_rembed.$(STATIC_EXTENSION)
-BUILT_LOCATION_STATIC_RELEASE=target/$(target)/release/libsqlite_rembed.$(STATIC_EXTENSION)
+BUILT_LOCATION_STATIC=target/$(target)/debug/$(LIBRARY_PREFIX)sqlite_rembed.$(STATIC_EXTENSION)
+BUILT_LOCATION_STATIC_RELEASE=target/$(target)/release/$(LIBRARY_PREFIX)sqlite_rembed.$(STATIC_EXTENSION)
 else
 CARGO_TARGET=
 BUILT_LOCATION=target/debug/$(LIBRARY_PREFIX)sqlite_rembed.$(LOADABLE_EXTENSION)
 BUILT_LOCATION_RELEASE=target/release/$(LIBRARY_PREFIX)sqlite_rembed.$(LOADABLE_EXTENSION)
-BUILT_LOCATION_STATIC=target/debug/libsqlite_rembed.$(STATIC_EXTENSION)
-BUILT_LOCATION_STATIC_RELEASE=target/release/libsqlite_rembed.$(STATIC_EXTENSION)
+BUILT_LOCATION_STATIC=target/debug/$(LIBRARY_PREFIX)sqlite_rembed.$(STATIC_EXTENSION)
+BUILT_LOCATION_STATIC_RELEASE=target/release/$(LIBRARY_PREFIX)sqlite_rembed.$(STATIC_EXTENSION)
 endif
 
 ifdef python
