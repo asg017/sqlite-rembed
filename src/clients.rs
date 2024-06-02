@@ -101,6 +101,11 @@ impl<'vtab, 'a> VTabWriteable<'vtab> for ClientsTable {
                                 key,
                             })
                         }
+                        "ollama" => Client::Ollama(StandardClient {
+                            url: "http://localhost:11434/api/embeddings".to_owned(),
+                            model: name.to_owned(),
+                            key: "".to_owned(),
+                        }),
                         text => {
                             return Err(Error::new_message(format!(
                                 "'{text}' is not a pre-defined rembed client."

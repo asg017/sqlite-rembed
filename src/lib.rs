@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use clients::ClientsTable;
-use infer::{infer_cohere, infer_nomic, infer_openai};
+use infer::{infer_cohere, infer_nomic, infer_ollama, infer_openai};
 use sqlite_loadable::{
     api, define_scalar_function, define_scalar_function_with_aux, define_virtual_table_writeablex,
     prelude::*, Result,
@@ -24,6 +24,7 @@ pub enum Client {
     OpenAI(StandardClient),
     Nomic(StandardClient),
     Cohere(StandardClient),
+    Ollama(StandardClient),
 }
 
 const CLIENT_OPTIONS_POINTER_NAME: &[u8] = b"sqlite-rembed-client-options\0";
@@ -66,6 +67,7 @@ pub fn rembed(
 
     let embedding = match client {
         Client::OpenAI(client) => infer_openai(client, input)?,
+        Client::Ollama(client) => infer_ollama(client, input)?,
         Client::Nomic(client) => {
             let input_type = values.get(2).and_then(|v| api::value_text(v).ok());
             infer_nomic(client, input, input_type)?

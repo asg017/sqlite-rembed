@@ -100,3 +100,28 @@ pub fn infer_cohere(
         .unwrap();
     Ok(parse_single_embedding_cohere(data).unwrap())
 }
+pub fn infer_ollama(client: &StandardClient, input: &str) -> Result<Vec<f32>> {
+    let mut body = serde_json::Map::new();
+    body.insert("prompt".to_owned(), input.to_owned().into());
+    body.insert("model".to_owned(), client.model.to_owned().into());
+
+    let data: serde_json::Value = ureq::post(&client.url)
+        .set("Content-Type", "application/json")
+        .set("Authorization", format!("Bearer {}", client.key).as_str())
+        .send_bytes(serde_json::to_vec(&body).unwrap().as_ref())
+        .unwrap()
+        .into_json()
+        .unwrap();
+    Ok(parse_single_embedding_ollama(data).unwrap())
+}
+
+fn parse_single_embedding_ollama(value: serde_json::Value) -> std::result::Result<Vec<f32>, ()> {
+    Ok(value
+        .get("embedding")
+        .ok_or(())?
+        .as_array()
+        .ok_or(())?
+        .iter()
+        .map(|v| v.as_f64().unwrap() as f32)
+        .collect())
+}
