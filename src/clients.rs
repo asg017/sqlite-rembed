@@ -7,7 +7,9 @@ use sqlite_loadable::{
 };
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, mem, os::raw::c_int, rc::Rc};
 
-use crate::{Client, StandardClient, CLIENT_OPTIONS_POINTER_NAME};
+use crate::{
+    Client, CohereClient, NomicClient, OllamaClient, OpenAiClient, CLIENT_OPTIONS_POINTER_NAME,
+};
 
 enum Columns {
     Name,
@@ -79,7 +81,7 @@ impl<'vtab, 'a> VTabWriteable<'vtab> for ClientsTable {
                         "openai" => {
                             let key = std::env::var("OPENAI_API_KEY")
                                 .map_err(|_| Error::new_message("OPENAI_API_KEY environment variable not define. Alternatively, pass in an API key with rembed_client_options"))?;
-                            Client::OpenAI(StandardClient {
+                            Client::OpenAI(OpenAiClient {
                                 url: "https://api.openai.com/v1/embeddings".to_owned(),
                                 model: name.to_owned(),
                                 key,
@@ -87,7 +89,7 @@ impl<'vtab, 'a> VTabWriteable<'vtab> for ClientsTable {
                         }
                         "nomic" => {
                             let key = std::env::var("NOMIC_API_KEY").map_err(|_| Error::new_message("NOMIC_API_KEY environment variable not define. Alternatively, pass in an API key with rembed_client_options"))?;
-                            Client::Nomic(StandardClient {
+                            Client::Nomic(NomicClient {
                                 url: "https://api-atlas.nomic.ai/v1/embedding/text".to_owned(),
                                 model: name.to_owned(),
                                 key,
@@ -95,16 +97,15 @@ impl<'vtab, 'a> VTabWriteable<'vtab> for ClientsTable {
                         }
                         "cohere" => {
                             let key = std::env::var("CO_API_KEY").map_err(|_| Error::new_message("CO_API_KEY environment variable not define. Alternatively, pass in an API key with rembed_client_options"))?;
-                            Client::Nomic(StandardClient {
+                            Client::Cohere(CohereClient {
                                 url: "https://api.cohere.com/v1/embed".to_owned(),
                                 model: name.to_owned(),
                                 key,
                             })
                         }
-                        "ollama" => Client::Ollama(StandardClient {
+                        "ollama" => Client::Ollama(OllamaClient {
                             url: "http://localhost:11434/api/embeddings".to_owned(),
                             model: name.to_owned(),
-                            key: "".to_owned(),
                         }),
                         text => {
                             return Err(Error::new_message(format!(

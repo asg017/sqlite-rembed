@@ -1,4 +1,4 @@
-use crate::StandardClient;
+use crate::{CohereClient, NomicClient, OllamaClient, OpenAiClient};
 use sqlite_loadable::Result;
 
 fn parse_single_embedding_openai(value: serde_json::Value) -> std::result::Result<Vec<f32>, ()> {
@@ -40,7 +40,7 @@ fn parse_single_embedding_cohere(value: serde_json::Value) -> std::result::Resul
         .collect())
 }
 
-pub fn infer_openai(client: &StandardClient, input: &str) -> Result<Vec<f32>> {
+pub fn infer_openai(client: &OpenAiClient, input: &str) -> Result<Vec<f32>> {
     let body = serde_json::json!({
         "input": input,
         "model": client.model
@@ -56,7 +56,7 @@ pub fn infer_openai(client: &StandardClient, input: &str) -> Result<Vec<f32>> {
     Ok(parse_single_embedding_openai(data).unwrap())
 }
 pub fn infer_nomic(
-    client: &StandardClient,
+    client: &NomicClient,
     input: &str,
     input_type: Option<&str>,
 ) -> Result<Vec<f32>> {
@@ -79,7 +79,7 @@ pub fn infer_nomic(
 }
 
 pub fn infer_cohere(
-    client: &StandardClient,
+    client: &CohereClient,
     input: &str,
     input_type: Option<&str>,
 ) -> Result<Vec<f32>> {
@@ -100,14 +100,13 @@ pub fn infer_cohere(
         .unwrap();
     Ok(parse_single_embedding_cohere(data).unwrap())
 }
-pub fn infer_ollama(client: &StandardClient, input: &str) -> Result<Vec<f32>> {
+pub fn infer_ollama(client: &OllamaClient, input: &str) -> Result<Vec<f32>> {
     let mut body = serde_json::Map::new();
     body.insert("prompt".to_owned(), input.to_owned().into());
     body.insert("model".to_owned(), client.model.to_owned().into());
 
     let data: serde_json::Value = ureq::post(&client.url)
         .set("Content-Type", "application/json")
-        .set("Authorization", format!("Bearer {}", client.key).as_str())
         .send_bytes(serde_json::to_vec(&body).unwrap().as_ref())
         .unwrap()
         .into_json()

@@ -14,17 +14,34 @@ use sqlite_loadable::{
 use zerocopy::AsBytes;
 
 #[derive(Clone)]
-pub struct StandardClient {
+struct OpenAiClient {
     url: String,
     model: String,
     key: String,
 }
 #[derive(Clone)]
+struct NomicClient {
+    url: String,
+    model: String,
+    key: String,
+}
+#[derive(Clone)]
+struct CohereClient {
+    url: String,
+    model: String,
+    key: String,
+}
+#[derive(Clone)]
+struct OllamaClient {
+    url: String,
+    model: String,
+}
+#[derive(Clone)]
 pub enum Client {
-    OpenAI(StandardClient),
-    Nomic(StandardClient),
-    Cohere(StandardClient),
-    Ollama(StandardClient),
+    OpenAI(OpenAiClient),
+    Nomic(NomicClient),
+    Cohere(CohereClient),
+    Ollama(OllamaClient),
 }
 
 const CLIENT_OPTIONS_POINTER_NAME: &[u8] = b"sqlite-rembed-client-options\0";
@@ -46,7 +63,7 @@ pub fn rembed_client_options(
     api::result_pointer(
         context,
         CLIENT_OPTIONS_POINTER_NAME,
-        Client::OpenAI(StandardClient {
+        Client::OpenAI(OpenAiClient {
             model: "".to_string(),
             key: "".to_string(),
             url: options.get("url").unwrap().to_owned(),
