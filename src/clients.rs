@@ -1,189 +1,352 @@
-use sqlite_loadable::table::UpdateOperation;
-use sqlite_loadable::{api, prelude::*, Error};
-use sqlite_loadable::{
-    api::ValueType,
-    table::{IndexInfo, VTab, VTabArguments, VTabCursor, VTabWriteable},
-    BestIndexError, Result,
-};
-use std::{cell::RefCell, collections::HashMap, marker::PhantomData, mem, os::raw::c_int, rc::Rc};
+use sqlite_loadable::{Error, Result};
 
-use crate::{
-    Client, CohereClient, NomicClient, OllamaClient, OpenAiClient, CLIENT_OPTIONS_POINTER_NAME,
-};
-
-enum Columns {
-    Name,
-    Options,
-}
-fn column(index: i32) -> Option<Columns> {
-    match index {
-        0 => Some(Columns::Name),
-        1 => Some(Columns::Options),
-        _ => None,
-    }
-}
-#[repr(C)]
-pub struct ClientsTable {
-    /// must be first
-    base: sqlite3_vtab,
-    clients: Rc<RefCell<HashMap<String, Client>>>,
+pub(crate) fn try_env_var(key: &str) -> Result<String> {
+    std::env::var(key)
+   .map_err(|_| Error::new_message(format!("{} environment variable not define. Alternatively, pass in an API key with rembed_client_options", DEFAULT_OPENAI_API_KEY_ENV)))
 }
 
-impl<'vtab> VTab<'vtab> for ClientsTable {
-    type Aux = Rc<RefCell<HashMap<String, Client>>>;
-    type Cursor = ClientsCursor<'vtab>;
-
-    fn create(
-        db: *mut sqlite3,
-        aux: Option<&Self::Aux>,
-        args: VTabArguments,
-    ) -> Result<(String, Self)> {
-        Self::connect(db, aux, args)
-    }
-    fn connect(
-        _db: *mut sqlite3,
-        aux: Option<&Self::Aux>,
-        _args: VTabArguments,
-    ) -> Result<(String, ClientsTable)> {
-        let base: sqlite3_vtab = unsafe { mem::zeroed() };
-        let clients = aux.unwrap().to_owned();
-
-        let vtab = ClientsTable { base, clients };
-        let sql = "create table x(name text primary key, options)".to_owned();
-
-        Ok((sql, vtab))
-    }
-    fn destroy(&self) -> Result<()> {
-        Ok(())
-    }
-
-    fn best_index(&self, mut info: IndexInfo) -> core::result::Result<(), BestIndexError> {
-        info.set_estimated_cost(10000.0);
-        info.set_estimated_rows(10000);
-        info.set_idxnum(1);
-        Ok(())
-    }
-
-    fn open(&'vtab mut self) -> Result<ClientsCursor<'vtab>> {
-        ClientsCursor::new(self)
-    }
+#[derive(Clone)]
+pub struct OpenAiClient {
+    model: String,
+    url: String,
+    key: String,
 }
+const DEFAULT_OPENAI_URL: &str = "https://api.openai.com/v1/embeddings";
+const DEFAULT_OPENAI_API_KEY_ENV: &str = "OPENAI_API_KEY";
 
-impl<'vtab, 'a> VTabWriteable<'vtab> for ClientsTable {
-    fn update(&'vtab mut self, operation: UpdateOperation<'_>, _p_rowid: *mut i64) -> Result<()> {
-        match operation {
-            UpdateOperation::Delete(_) => todo!(),
-            UpdateOperation::Update { _values } => todo!(),
-            UpdateOperation::Insert { values, rowid: _ } => {
-                let name = api::value_text(&values[0])?;
-                let client = match api::value_type(&values[1]) {
-                    ValueType::Text => match api::value_text(&values[1])? {
-                        "openai" => {
-                            let key = std::env::var("OPENAI_API_KEY")
-                                .map_err(|_| Error::new_message("OPENAI_API_KEY environment variable not define. Alternatively, pass in an API key with rembed_client_options"))?;
-                            Client::OpenAI(OpenAiClient {
-                                url: "https://api.openai.com/v1/embeddings".to_owned(),
-                                model: name.to_owned(),
-                                key,
+impl OpenAiClient {
+    pub fn new<S: Into<String>>(
+        model: S,
+        url: Option<String>,
+        key: Option<String>,
+    ) -> Result<Self> {
+        Ok(Self {
+            model: model.into(),
+            url: url.unwrap_or(DEFAULT_OPENAI_URL.to_owned()),
+            key: match key {
+                Some(key) => key,
+                None => try_env_var(DEFAULT_OPENAI_API_KEY_ENV)?,
+            },
+        })
+    }
+    pub fn infer_single(&self, input: &str) -> Result<Vec<f32>> {
+        let body = serde_json::json!({
+            "input": input,
+            "model": self.model
+        });
+
+        let data: serde_json::Value = ureq::post(&self.url)
+            .set("Content-Type", "application/json")
+            .set("Authorization", format!("Bearer {}", self.key).as_str())
+            .send_bytes(
+                serde_json::to_vec(&body)
+                    .map_err(|error| {
+                        Error::new_message(format!("Error serializing body to JSON: {error}"))
+                    })?
+                    .as_ref(),
+            )
+            .map_err(|error| Error::new_message(format!("Error sending HTTP request: {error}")))?
+            .into_json()
+            .map_err(|error| {
+                Error::new_message(format!("Error parsing HTTP response as JSON: {error}"))
+            })?;
+        OpenAiClient::parse_single_response(data)
+    }
+
+    pub fn parse_single_response(value: serde_json::Value) -> Result<Vec<f32>> {
+        value
+            .get("data")
+            .ok_or_else(|| Error::new_message("expected 'data' key in response body"))
+            .and_then(|v| {
+                v.get(0)
+                    .ok_or_else(|| Error::new_message("expected 'data.0' path in response body"))
+            })
+            .and_then(|v| {
+                v.get("embedding").ok_or_else(|| {
+                    Error::new_message("expected 'data.0.embedding' path in response body")
+                })
+            })
+            .and_then(|v| {
+                v.as_array().ok_or_else(|| {
+                    Error::new_message("expected 'data.0.embedding' path to be an array")
+                })
+            })
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| {
+                        v.as_f64()
+                            .ok_or_else(|| {
+                                Error::new_message(
+                                    "expected 'data.0.embedding' array to contain floats",
+                                )
                             })
-                        }
-                        "nomic" => {
-                            let key = std::env::var("NOMIC_API_KEY").map_err(|_| Error::new_message("NOMIC_API_KEY environment variable not define. Alternatively, pass in an API key with rembed_client_options"))?;
-                            Client::Nomic(NomicClient {
-                                url: "https://api-atlas.nomic.ai/v1/embedding/text".to_owned(),
-                                model: name.to_owned(),
-                                key,
-                            })
-                        }
-                        "cohere" => {
-                            let key = std::env::var("CO_API_KEY").map_err(|_| Error::new_message("CO_API_KEY environment variable not define. Alternatively, pass in an API key with rembed_client_options"))?;
-                            Client::Cohere(CohereClient {
-                                url: "https://api.cohere.com/v1/embed".to_owned(),
-                                model: name.to_owned(),
-                                key,
-                            })
-                        }
-                        "ollama" => Client::Ollama(OllamaClient {
-                            url: "http://localhost:11434/api/embeddings".to_owned(),
-                            model: name.to_owned(),
-                        }),
-                        text => {
-                            return Err(Error::new_message(format!(
-                                "'{text}' is not a pre-defined rembed client."
-                            )))
-                        }
-                    },
-                    ValueType::Null => unsafe {
-                        if let Some(client) =
-                            api::value_pointer::<Client>(&values[1], CLIENT_OPTIONS_POINTER_NAME)
-                        {
-                            (*client).clone()
-                        } else {
-                            return Err(Error::new_message("client options required"));
-                        }
-                    },
-                    _ => return Err(Error::new_message("client options required")),
-                };
-                self.clients.borrow_mut().insert(name.to_owned(), client);
-            }
+                            .map(|f| f as f32)
+                    })
+                    .collect()
+            })
+    }
+}
+
+#[derive(Clone)]
+pub struct NomicClient {
+    model: String,
+    url: String,
+    key: String,
+}
+const DEFAULT_NOMIC_URL: &str = "https://api-atlas.nomic.ai/v1/embedding/text";
+const DEFAULT_NOMIC_API_KEY_ENV: &str = "NOMIC_API_KEY";
+
+impl NomicClient {
+    pub fn new<S: Into<String>>(
+        model: S,
+        url: Option<String>,
+        key: Option<String>,
+    ) -> Result<Self> {
+        Ok(Self {
+            model: model.into(),
+            url: url.unwrap_or(DEFAULT_NOMIC_URL.to_owned()),
+            key: match key {
+                Some(key) => key,
+                None => try_env_var(DEFAULT_NOMIC_API_KEY_ENV)?,
+            },
+        })
+    }
+
+    pub fn infer_single(&self, input: &str, input_type: Option<&str>) -> Result<Vec<f32>> {
+        let mut body = serde_json::Map::new();
+        body.insert("texts".to_owned(), vec![input.to_owned()].into());
+        body.insert("model".to_owned(), self.model.to_owned().into());
+
+        if let Some(input_type) = input_type {
+            body.insert("input_type".to_owned(), input_type.to_owned().into());
         }
-        Ok(())
+
+        let data: serde_json::Value = ureq::post(&self.url)
+            .set("Content-Type", "application/json")
+            .set("Authorization", format!("Bearer {}", self.key).as_str())
+            .send_bytes(
+                serde_json::to_vec(&body)
+                    .map_err(|error| {
+                        Error::new_message(format!("Error serializing body to JSON: {error}"))
+                    })?
+                    .as_ref(),
+            )
+            .map_err(|error| Error::new_message(format!("Error sending HTTP request: {error}")))?
+            .into_json()
+            .map_err(|error| {
+                Error::new_message(format!("Error parsing HTTP response as JSON: {error}"))
+            })?;
+        NomicClient::parse_single_response(data)
+    }
+    pub fn parse_single_response(value: serde_json::Value) -> Result<Vec<f32>> {
+        value
+            .get("embeddings")
+            .ok_or_else(|| Error::new_message("expected 'embeddings' key in response body"))
+            .and_then(|v| {
+                v.get(0).ok_or_else(|| {
+                    Error::new_message("expected 'embeddings.0' path in response body")
+                })
+            })
+            .and_then(|v| {
+                v.as_array().ok_or_else(|| {
+                    Error::new_message("expected 'embeddings.0' path to be an array")
+                })
+            })
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| {
+                        v.as_f64()
+                            .ok_or_else(|| {
+                                Error::new_message(
+                                    "expected 'embeddings.0' array to contain floats",
+                                )
+                            })
+                            .map(|f| f as f32)
+                    })
+                    .collect()
+            })
     }
 }
 
-#[repr(C)]
-pub struct ClientsCursor<'vtab> {
-    /// Base class. Must be first
-    base: sqlite3_vtab_cursor,
-    keys: Vec<String>,
-    rowid: i64,
-    phantom: PhantomData<&'vtab ClientsTable>,
+#[derive(Clone)]
+pub struct CohereClient {
+    url: String,
+    model: String,
+    key: String,
 }
-impl ClientsCursor<'_> {
-    fn new(table: &mut ClientsTable) -> Result<ClientsCursor> {
-        let base: sqlite3_vtab_cursor = unsafe { mem::zeroed() };
-        let c = table.clients.borrow();
-        let keys = c.keys().map(|k| k.to_string()).collect();
-        let cursor = ClientsCursor {
-            base,
-            keys,
-            rowid: 0,
-            phantom: PhantomData,
-        };
-        Ok(cursor)
+const DEFAULT_COHERE_URL: &str = "https://api.cohere.com/v1/embed";
+const DEFAULT_COHERE_API_KEY_ENV: &str = "CO_API_KEY";
+
+impl CohereClient {
+    pub fn new<S: Into<String>>(
+        model: S,
+        url: Option<String>,
+        key: Option<String>,
+    ) -> Result<Self> {
+        Ok(Self {
+            model: model.into(),
+            url: url.unwrap_or(DEFAULT_COHERE_URL.to_owned()),
+            key: match key {
+                Some(key) => key,
+                None => try_env_var(DEFAULT_COHERE_API_KEY_ENV)?,
+            },
+        })
+    }
+
+    pub fn infer_single(&self, input: &str, input_type: Option<&str>) -> Result<Vec<f32>> {
+        let mut body = serde_json::Map::new();
+        body.insert("texts".to_owned(), vec![input.to_owned()].into());
+        body.insert("model".to_owned(), self.model.to_owned().into());
+
+        if let Some(input_type) = input_type {
+            body.insert("input_type".to_owned(), input_type.to_owned().into());
+        }
+
+        let data: serde_json::Value = ureq::post(&self.url)
+            .set("Content-Type", "application/json")
+            .set("Accept", "application/json")
+            .set("Authorization", format!("Bearer {}", self.key).as_str())
+            .send_bytes(
+                serde_json::to_vec(&body)
+                    .map_err(|error| {
+                        Error::new_message(format!("Error serializing body to JSON: {error}"))
+                    })?
+                    .as_ref(),
+            )
+            .map_err(|error| Error::new_message(format!("Error sending HTTP request: {error}")))?
+            .into_json()
+            .map_err(|error| {
+                Error::new_message(format!("Error parsing HTTP response as JSON: {error}"))
+            })?;
+        CohereClient::parse_single_response(data)
+    }
+    pub fn parse_single_response(value: serde_json::Value) -> Result<Vec<f32>> {
+        value
+            .get("embeddings")
+            .ok_or_else(|| Error::new_message("expected 'embeddings' key in response body"))
+            .and_then(|v| {
+                v.get(0).ok_or_else(|| {
+                    Error::new_message("expected 'embeddings.0' path in response body")
+                })
+            })
+            .and_then(|v| {
+                v.as_array().ok_or_else(|| {
+                    Error::new_message("expected 'embeddings.0' path to be an array")
+                })
+            })
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| {
+                        v.as_f64()
+                            .ok_or_else(|| {
+                                Error::new_message(
+                                    "expected 'embeddings.0' array to contain floats",
+                                )
+                            })
+                            .map(|f| f as f32)
+                    })
+                    .collect()
+            })
     }
 }
 
-impl VTabCursor for ClientsCursor<'_> {
-    fn filter(
-        &mut self,
-        _idx_num: c_int,
-        _idx_str: Option<&str>,
-        _values: &[*mut sqlite3_value],
-    ) -> Result<()> {
-        Ok(())
+#[derive(Clone)]
+pub struct OllamaClient {
+    url: String,
+    model: String,
+}
+const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434/api/embeddings";
+impl OllamaClient {
+    pub fn new<S: Into<String>>(model: S, url: Option<String>) -> Self {
+        Self {
+            model: model.into(),
+            url: url.unwrap_or(DEFAULT_OLLAMA_URL.to_owned()),
+        }
     }
 
-    fn next(&mut self) -> Result<()> {
-        self.rowid += 1;
-        Ok(())
+    pub fn infer_single(&self, input: &str) -> Result<Vec<f32>> {
+        let mut body = serde_json::Map::new();
+        body.insert("prompt".to_owned(), input.to_owned().into());
+        body.insert("model".to_owned(), self.model.to_owned().into());
+
+        let data: serde_json::Value = ureq::post(&self.url)
+            .set("Content-Type", "application/json")
+            .send_bytes(
+                serde_json::to_vec(&body)
+                    .map_err(|error| {
+                        Error::new_message(format!("Error serializing body to JSON: {error}"))
+                    })?
+                    .as_ref(),
+            )
+            .map_err(|error| Error::new_message(format!("Error sending HTTP request: {error}")))?
+            .into_json()
+            .map_err(|error| {
+                Error::new_message(format!("Error parsing HTTP response as JSON: {error}"))
+            })?;
+        OllamaClient::parse_single_response(data)
+    }
+    pub fn parse_single_response(value: serde_json::Value) -> Result<Vec<f32>> {
+        value
+            .get("embedding")
+            .ok_or_else(|| Error::new_message("expected 'embedding' key in response body"))
+            .and_then(|v| {
+                v.as_array()
+                    .ok_or_else(|| Error::new_message("expected 'embedding' path to be an array"))
+            })
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| {
+                        v.as_f64()
+                            .ok_or_else(|| {
+                                Error::new_message("expected 'embedding' array to contain floats")
+                            })
+                            .map(|f| f as f32)
+                    })
+                    .collect()
+            })
+    }
+}
+
+#[derive(Clone)]
+pub struct LlamafileClient {
+    url: String,
+}
+const DEFAULT_LLAMAFILE_URL: &str = "http://localhost:8080/embedding";
+
+impl LlamafileClient {
+    pub fn new(url: Option<String>) -> Self {
+        Self {
+            url: url.unwrap_or(DEFAULT_LLAMAFILE_URL.to_owned()),
+        }
     }
 
-    fn eof(&self) -> bool {
-        self.rowid >= self.keys.len().try_into().unwrap()
-    }
+    pub fn infer_single(&self, input: &str) -> Result<Vec<f32>> {
+        let mut body = serde_json::Map::new();
+        body.insert("content".to_owned(), input.to_owned().into());
 
-    fn column(&self, context: *mut sqlite3_context, i: c_int) -> Result<()> {
-        let key = self.keys.get(self.rowid as usize).unwrap();
-        match column(i) {
-            Some(Columns::Name) => api::result_text(context, key)?,
-            Some(Columns::Options) => (),
-            None => (),
-        };
-        Ok(())
+        let data: serde_json::Value = ureq::post(&self.url)
+            .set("Content-Type", "application/json")
+            .send_bytes(
+                serde_json::to_vec(&body)
+                    .map_err(|error| {
+                        Error::new_message(format!("Error serializing body to JSON: {error}"))
+                    })?
+                    .as_ref(),
+            )
+            .map_err(|error| Error::new_message(format!("Error sending HTTP request: {error}")))?
+            .into_json()
+            .map_err(|error| {
+                Error::new_message(format!("Error parsing HTTP response as JSON: {error}"))
+            })?;
+        OllamaClient::parse_single_response(data)
     }
+}
 
-    fn rowid(&self) -> Result<i64> {
-        Ok(self.rowid)
-    }
+#[derive(Clone)]
+pub enum Client {
+    OpenAI(OpenAiClient),
+    Nomic(NomicClient),
+    Cohere(CohereClient),
+    Ollama(OllamaClient),
+    Llamafile(LlamafileClient),
 }
