@@ -7,6 +7,7 @@ use sqlite_loadable::{
 };
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, mem, os::raw::c_int, rc::Rc};
 
+use crate::clients::MixedbreadClient;
 use crate::{
     clients::{
         Client, CohereClient, JinaClient, LlamafileClient, NomicClient, OllamaClient, OpenAiClient,
@@ -90,6 +91,9 @@ impl<'vtab, 'a> VTabWriteable<'vtab> for ClientsTable {
                 let client = match api::value_type(&values[1]) {
                     ValueType::Text => match api::value_text(&values[1])? {
                         "openai" => Client::OpenAI(OpenAiClient::new(name, None, None)?),
+                        "mixedbread" => {
+                            Client::Mixedbread(MixedbreadClient::new(name, None, None)?)
+                        }
                         "jina" => Client::Jina(JinaClient::new(name, None, None)?),
                         "nomic" => Client::Nomic(NomicClient::new(name, None, None)?),
                         "cohere" => Client::Cohere(CohereClient::new(name, None, None)?),

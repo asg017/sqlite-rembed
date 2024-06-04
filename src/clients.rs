@@ -330,6 +330,87 @@ impl JinaClient {
             })
     }
 }
+#[derive(Clone)]
+pub struct MixedbreadClient {
+    url: String,
+    model: String,
+    key: String,
+}
+const DEFAULT_MIXEDBREAD_URL: &str = "https://api.mixedbread.ai/v1/embeddings/";
+const DEFAULT_MIXEDBREAD_API_KEY_ENV: &str = "MIXEDBREAD_API_KEY";
+
+impl MixedbreadClient {
+    pub fn new<S: Into<String>>(
+        model: S,
+        url: Option<String>,
+        key: Option<String>,
+    ) -> Result<Self> {
+        Ok(Self {
+            model: model.into(),
+            url: url.unwrap_or(DEFAULT_MIXEDBREAD_URL.to_owned()),
+            key: match key {
+                Some(key) => key,
+                None => try_env_var(DEFAULT_MIXEDBREAD_API_KEY_ENV)?,
+            },
+        })
+    }
+
+    pub fn infer_single(&self, input: &str) -> Result<Vec<f32>> {
+        let mut body = serde_json::Map::new();
+        body.insert("input".to_owned(), vec![input.to_owned()].into());
+        body.insert("model".to_owned(), self.model.to_owned().into());
+
+        let data: serde_json::Value = ureq::post(&self.url)
+            .set("Content-Type", "application/json")
+            .set("Accept", "application/json")
+            .set("Authorization", format!("Bearer {}", self.key).as_str())
+            .send_bytes(
+                serde_json::to_vec(&body)
+                    .map_err(|error| {
+                        Error::new_message(format!("Error serializing body to JSON: {error}"))
+                    })?
+                    .as_ref(),
+            )
+            .map_err(|error| Error::new_message(format!("Error sending HTTP request: {error}")))?
+            .into_json()
+            .map_err(|error| {
+                Error::new_message(format!("Error parsing HTTP response as JSON: {error}"))
+            })?;
+        JinaClient::parse_single_response(data)
+    }
+    pub fn parse_single_response(value: serde_json::Value) -> Result<Vec<f32>> {
+        value
+            .get("data")
+            .ok_or_else(|| Error::new_message("expected 'data' key in response body"))
+            .and_then(|v| {
+                v.get(0)
+                    .ok_or_else(|| Error::new_message("expected 'data.0' path in response body"))
+            })
+            .and_then(|v| {
+                v.get("embedding").ok_or_else(|| {
+                    Error::new_message("expected 'data.0.embedding' path in response body")
+                })
+            })
+            .and_then(|v| {
+                v.as_array().ok_or_else(|| {
+                    Error::new_message("expected 'data.0.embedding' path to be an array")
+                })
+            })
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| {
+                        v.as_f64()
+                            .ok_or_else(|| {
+                                Error::new_message(
+                                    "expected 'data.0.embedding' array to contain floats",
+                                )
+                            })
+                            .map(|f| f as f32)
+                    })
+                    .collect()
+            })
+    }
+}
 
 #[derive(Clone)]
 pub struct OllamaClient {
@@ -431,4 +512,5 @@ pub enum Client {
     Ollama(OllamaClient),
     Llamafile(LlamafileClient),
     Jina(JinaClient),
+    Mixedbread(MixedbreadClient),
 }

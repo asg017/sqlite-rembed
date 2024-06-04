@@ -8,6 +8,7 @@
 INSERT INTO temp.rembed_clients(name, options) VALUES
   ('text-embedding-3-small','openai'),
   ('jina-embeddings-v2-base-en','jina'),
+  ('mixedbread-ai/mxbai-embed-large-v1','mixedbread'),
   ('nomic-embed-text-v1.5', 'nomic'),
   ('embed-english-v3.0', 'cohere'),
   ('snowflake-arctic-embed:s', 'ollama'),
@@ -21,6 +22,8 @@ INSERT INTO temp.rembed_clients(name, options) VALUES
     )
   );
 
+select length(rembed('mixedbread-ai/mxbai-embed-large-v1', 'obama the person'));
+.exit
 select length(rembed('jina-embeddings-v2-base-en', 'obama the person'));
 
 .exit

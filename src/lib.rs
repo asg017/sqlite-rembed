@@ -97,6 +97,7 @@ pub fn rembed(
     let embedding = match client {
         Client::OpenAI(client) => client.infer_single(input)?,
         Client::Jina(client) => client.infer_single(input)?,
+        Client::Mixedbread(client) => client.infer_single(input)?,
         Client::Ollama(client) => client.infer_single(input)?,
         Client::Llamafile(client) => client.infer_single(input)?,
         Client::Nomic(client) => {
