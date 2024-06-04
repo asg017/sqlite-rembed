@@ -77,6 +77,8 @@ jobs:
           curl -L https://github.com/asg017/sqlite-dist/releases/download/v0.0.1-alpha.6/sqlite-dist-x86_64-unknown-linux-gnu.tar.xz \
             | tar xfJ - --strip-components 1
       - run: make sqlite-rembed.h
+      - run: mkdir distx
+      - run: find .
       - run: ./sqlite-dist ./sqlite-dist.toml --input dist/ --output distx/ --version $(cat VERSION)
       - run: |
           gh release upload ${{ github.ref_name }} \
