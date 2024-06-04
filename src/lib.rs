@@ -117,7 +117,9 @@ pub fn rembed(
 
 #[sqlite_entrypoint]
 pub fn sqlite3_rembed_init(db: *mut sqlite3) -> Result<()> {
-    let flags = FunctionFlags::UTF8 | FunctionFlags::DETERMINISTIC;
+    let flags = FunctionFlags::UTF8
+        | FunctionFlags::DETERMINISTIC
+        | unsafe { FunctionFlags::from_bits_unchecked(0x001000000) };
 
     let c = Rc::new(RefCell::new(HashMap::new()));
 

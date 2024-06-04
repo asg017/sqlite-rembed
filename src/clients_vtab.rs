@@ -73,7 +73,7 @@ impl<'vtab> VTab<'vtab> for ClientsTable {
     }
 }
 
-impl<'vtab, 'a> VTabWriteable<'vtab> for ClientsTable {
+impl<'vtab> VTabWriteable<'vtab> for ClientsTable {
     fn update(&'vtab mut self, operation: UpdateOperation<'_>, _p_rowid: *mut i64) -> Result<()> {
         match operation {
             UpdateOperation::Delete(_) => {
