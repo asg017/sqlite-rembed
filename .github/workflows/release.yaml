@@ -82,7 +82,6 @@ jobs:
       - run: ./sqlite-dist ./sqlite-dist.toml --input dist/ --output distx/ --version $(cat VERSION)
       - run: |
           gh release upload ${{ github.ref_name }} \
-            distx/amalgamation/* \
             distx/github_releases/* \
             distx/spm/* \
             distx/sqlpkg/* \
