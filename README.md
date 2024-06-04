@@ -11,10 +11,10 @@ Work in progress!
 | Cohere    | https://docs.cohere.com/reference/embed                                    |
 | OpenAI    | https://platform.openai.com/docs/guides/embeddings                         |
 | llamafile | https://github.com/Mozilla-Ocho/llamafile                                  |
+| Jina      | https://api.jina.ai/redoc#tag/embeddings                                   |
 
 TODO
 
-- Jina https://jina.ai/embeddings/#apiform
 - Google AI API https://ai.google.dev/api/rest/v1beta/models/embedText
 - text-embeddings-inference https://github.com/huggingface/text-embeddings-inference
 - mixedbread https://www.mixedbread.ai/api-reference#whats-inside-

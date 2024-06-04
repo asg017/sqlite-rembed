@@ -8,7 +8,9 @@ use sqlite_loadable::{
 use std::{cell::RefCell, collections::HashMap, marker::PhantomData, mem, os::raw::c_int, rc::Rc};
 
 use crate::{
-    clients::{Client, CohereClient, LlamafileClient, NomicClient, OllamaClient, OpenAiClient},
+    clients::{
+        Client, CohereClient, JinaClient, LlamafileClient, NomicClient, OllamaClient, OpenAiClient,
+    },
     CLIENT_OPTIONS_POINTER_NAME,
 };
 
@@ -73,13 +75,22 @@ impl<'vtab> VTab<'vtab> for ClientsTable {
 impl<'vtab, 'a> VTabWriteable<'vtab> for ClientsTable {
     fn update(&'vtab mut self, operation: UpdateOperation<'_>, _p_rowid: *mut i64) -> Result<()> {
         match operation {
-            UpdateOperation::Delete(_) => todo!(),
-            UpdateOperation::Update { _values } => todo!(),
+            UpdateOperation::Delete(_) => {
+                return Err(Error::new_message(
+                    "DELETE operations on rembed_clients is not supported yet",
+                ))
+            }
+            UpdateOperation::Update { _values } => {
+                return Err(Error::new_message(
+                    "DELETE operations on rembed_clients is not supported yet",
+                ))
+            }
             UpdateOperation::Insert { values, rowid: _ } => {
                 let name = api::value_text(&values[0])?;
                 let client = match api::value_type(&values[1]) {
                     ValueType::Text => match api::value_text(&values[1])? {
                         "openai" => Client::OpenAI(OpenAiClient::new(name, None, None)?),
+                        "jina" => Client::Jina(JinaClient::new(name, None, None)?),
                         "nomic" => Client::Nomic(NomicClient::new(name, None, None)?),
                         "cohere" => Client::Cohere(CohereClient::new(name, None, None)?),
                         "ollama" => Client::Ollama(OllamaClient::new(name, None)),

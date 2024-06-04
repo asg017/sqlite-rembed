@@ -73,7 +73,7 @@ pub fn rembed_client_options(
             options.get("url").cloned(),
         )),
         "llamafile" => Client::Llamafile(LlamafileClient::new(options.get("url").cloned())),
-        _ => todo!(),
+        format => return Err(Error::new_message(format!("Unknown format '{format}'"))),
     };
 
     api::result_pointer(context, CLIENT_OPTIONS_POINTER_NAME, client);
@@ -96,6 +96,7 @@ pub fn rembed(
 
     let embedding = match client {
         Client::OpenAI(client) => client.infer_single(input)?,
+        Client::Jina(client) => client.infer_single(input)?,
         Client::Ollama(client) => client.infer_single(input)?,
         Client::Llamafile(client) => client.infer_single(input)?,
         Client::Nomic(client) => {

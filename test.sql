@@ -7,6 +7,7 @@
 
 INSERT INTO temp.rembed_clients(name, options) VALUES
   ('text-embedding-3-small','openai'),
+  ('jina-embeddings-v2-base-en','jina'),
   ('nomic-embed-text-v1.5', 'nomic'),
   ('embed-english-v3.0', 'cohere'),
   ('snowflake-arctic-embed:s', 'ollama'),
@@ -19,6 +20,10 @@ INSERT INTO temp.rembed_clients(name, options) VALUES
       'url', 'http://mm1:8080/embedding'
     )
   );
+
+select length(rembed('jina-embeddings-v2-base-en', 'obama the person'));
+
+.exit
 
 select length(rembed('text-embedding-3-small', 'obama the person'));
 select length(rembed('llamafile', 'obama the person'));
