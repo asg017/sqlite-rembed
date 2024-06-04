@@ -1,6 +1,6 @@
 [package]
 name = "sqlite-rembed"
-version = "0.0.1-alpha.3"
+version = "0.0.1-alpha.4"
 edition = "2021"
 
 [dependencies]
