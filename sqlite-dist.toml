@@ -10,7 +10,6 @@ authors = ["Alex Garcia"]
 github_releases = {}
 sqlpkg = {}
 spm = {}
-amalgamation = {include=["sqlite-rembed.c", "sqlite-rembed.h"]}
 
 pip = {}
 datasette = {}
