@@ -33,6 +33,7 @@ jobs:
           name: sqlite-rembed-macos-aarch64-extension
           path: dist/release/*
   build-windows-x86_64-extension:
+    if: false
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v4
@@ -46,12 +47,11 @@ jobs:
           path: dist/release/*
   dist:
     runs-on: ubuntu-latest
-    needs:
-      [
+    needs: [
         build-linux-x86_64-extension,
         build-macos-x86_64-extension,
         build-macos-aarch64-extension,
-        build-windows-x86_64-extension,
+        #build-windows-x86_64-extension,
       ]
     permissions:
       contents: write
@@ -69,10 +69,10 @@ jobs:
         with:
           name: sqlite-rembed-macos-aarch64-extension
           path: dist/macos-aarch64
-      - uses: actions/download-artifact@v4
-        with:
-          name: sqlite-rembed-windows-x86_64-extension
-          path: dist/windows-x86_64
+      #- uses: actions/download-artifact@v4
+      #  with:
+      #    name: sqlite-rembed-windows-x86_64-extension
+      #    path: dist/windows-x86_64
       - run: |
           curl -L https://github.com/asg017/sqlite-dist/releases/download/v0.0.1-alpha.6/sqlite-dist-x86_64-unknown-linux-gnu.tar.xz \
             | tar xfJ - --strip-components 1
