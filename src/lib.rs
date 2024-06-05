@@ -14,8 +14,26 @@ use sqlite_loadable::{
 use zerocopy::AsBytes;
 
 const FLOAT32_VECTOR_SUBTYPE: u8 = 223;
-
 const CLIENT_OPTIONS_POINTER_NAME: &[u8] = b"sqlite-rembed-client-options\0";
+
+pub fn rembed_version(context: *mut sqlite3_context, _values: &[*mut sqlite3_value]) -> Result<()> {
+    api::result_text(context, format!("v{}", env!("CARGO_PKG_VERSION")))?;
+    Ok(())
+}
+
+pub fn rembed_debug(context: *mut sqlite3_context, _values: &[*mut sqlite3_value]) -> Result<()> {
+    api::result_text(
+        context,
+        format!(
+            "Version: v{}
+Source: {}
+",
+            env!("CARGO_PKG_VERSION"),
+            env!("GIT_HASH")
+        ),
+    )?;
+    Ok(())
+}
 
 pub fn rembed_client_options(
     context: *mut sqlite3_context,
@@ -123,6 +141,20 @@ pub fn sqlite3_rembed_init(db: *mut sqlite3) -> Result<()> {
 
     let c = Rc::new(RefCell::new(HashMap::new()));
 
+    define_scalar_function(
+        db,
+        "rembed_version",
+        0,
+        rembed_version,
+        FunctionFlags::UTF8 | FunctionFlags::DETERMINISTIC,
+    )?;
+    define_scalar_function(
+        db,
+        "rembed_debug",
+        0,
+        rembed_debug,
+        FunctionFlags::UTF8 | FunctionFlags::DETERMINISTIC,
+    )?;
     define_scalar_function_with_aux(db, "rembed", 2, rembed, flags, Rc::clone(&c))?;
     define_scalar_function_with_aux(db, "rembed", 3, rembed, flags, Rc::clone(&c))?;
     define_scalar_function(
