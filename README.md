@@ -131,4 +131,4 @@ Notice how "firearm courtroom" doesn't appear in any of these headlines, but it 
 ## Drawbacks
 
 1. **No batch support yet.** If you use `rembed()` in a batch UPDATE or INSERT in 1,000 rows, then 1,000 HTTP requests will be made. Add a :+1: to [Issue #1](https://github.com/asg017/sqlite-rembed/issues/1) if you want to see this fixed.
-2. **No builtin rate limiting.** Requests are sent sequentially so this may not come up in small demos, but `sqlite-rembed` could add features that handles rate limiting/retries implicitly. Add a :+1: to [Issue #2](https://github.com/asg017/sqlite-rembed/issues/2) if you want to see tihs implemented.
+2. **No builtin rate limiting.** Requests are sent sequentially so this may not come up in small demos, but `sqlite-rembed` could add features that handles rate limiting/retries implicitly. Add a :+1: to [Issue #2](https://github.com/asg017/sqlite-rembed/issues/2) if you want to see this implemented.
