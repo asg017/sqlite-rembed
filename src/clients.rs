@@ -576,7 +576,7 @@ impl AmazonBedrockClient {
 		format!("{algorithm} Credential={credential}/{scope}, SignedHeaders={signed_headers}, Signature={signature}")
 	}
 
-    pub fn infer_single(&self, input: &str) -> Result<Vec<f32>> {
+    pub fn infer_single(&self, input: &str, input_type: Option<&str>, truncate: Option<&str>) -> Result<Vec<f32>> {
 
         // Step 0a. extract model provider
 
@@ -593,8 +593,8 @@ impl AmazonBedrockClient {
 			}),
 			"cohere" => ureq::json!({
 				"texts": [input.to_owned()],
-				"input_type": "search_document",
-            	"truncate": "NONE"
+				"input_type": input_type.unwrap_or("search_document"),
+            	"truncate": truncate.unwrap_or("NONE")
 			}),
 			_ => ureq::json!({})
 		};
@@ -685,7 +685,7 @@ impl AmazonBedrockClient {
 			.set("X-Amz-Date", &amazon_time)
 			.set("Authorization", &authorization);
 
-		let request = if !self.aws_session_token.is_empty() {
+		let request = if self.aws_session_token.is_empty() {
 			request.clone()
 		} else {
 			request.clone().set("X-Amz-Security-Token", &self.aws_session_token)
