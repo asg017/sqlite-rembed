@@ -513,9 +513,9 @@ impl LlamafileClient {
 pub struct AmazonBedrockClient {
     model_id: String,
     region: String,
-	aws_access_key_id: String,
-	aws_secret_access_key: String,
-	aws_session_token: String
+    aws_access_key_id: String,
+    aws_secret_access_key: String,
+    aws_session_token: String
 }
 const DEFAULT_AWS_REGION: &str = "us-east-1";
 
@@ -524,57 +524,57 @@ impl AmazonBedrockClient {
         Ok(Self {
             model_id: model_id.into(),
             region: region.unwrap_or(DEFAULT_AWS_REGION.to_owned()),
-			aws_access_key_id: aws_access_key_id.unwrap_or(
-				std::env::var("AWS_ACCESS_KEY_ID").unwrap()
-			),
-			aws_secret_access_key: aws_secret_access_key.unwrap_or(
-				std::env::var("AWS_SECRET_ACCESS_KEY").unwrap()
-			),
-			aws_session_token: aws_session_token.unwrap_or(
-				std::env::var("AWS_SESSION_TOKEN").unwrap_or_default()
-			),
+            aws_access_key_id: aws_access_key_id.unwrap_or(
+                std::env::var("AWS_ACCESS_KEY_ID").unwrap()
+            ),
+            aws_secret_access_key: aws_secret_access_key.unwrap_or(
+                std::env::var("AWS_SECRET_ACCESS_KEY").unwrap()
+            ),
+            aws_session_token: aws_session_token.unwrap_or(
+                std::env::var("AWS_SESSION_TOKEN").unwrap_or_default()
+            ),
         })
     }
 
-	pub fn sign(&self, key: &[u8], msg: &[u8]) -> Vec<u8> {
-		let mut mac = HmacSha256::new_from_slice(key).unwrap();
-		mac.update(msg);
-		let result = mac.finalize();
-		result.into_bytes().to_vec()
-	}
-	
-	pub fn get_signing_key(&self, key: &str, date: &str, region: &str, service: &str) -> Vec<u8> {
-		let k_date = self.sign(format!("AWS4{key}").as_bytes(), date.as_bytes());
-		let k_region = self.sign(&k_date, region.as_bytes());
-		let k_service = self.sign(&k_region, service.as_bytes());
-		self.sign(&k_service, "aws4_request".as_bytes())
-	}
-	
-	pub fn get_signature(&self, signing_key: &[u8], string_to_sign: &str) -> String {
-		let signature = self.sign(signing_key, string_to_sign.as_bytes());
-		hex::encode(signature)
-	}
-	
-	pub fn get_canonical_request(&self, http_verb: &str, canonical_uri: &str, canonical_query_string: &str, canonical_headers: &[String], signed_headers: &[&str], payload: &str) -> String {
-		let canonical_headers = canonical_headers.join("\n");
-		let signed_headers = signed_headers.join(";");
-		let mut hasher = Sha256::new();
-		hasher.update(payload.as_bytes());
-		let hashed_payload = hasher.finalize();
-		format!("{http_verb}\n{canonical_uri}\n{canonical_query_string}\n{canonical_headers}\n\n{signed_headers}\n{hashed_payload:x}")
-	}
-	
-	pub fn get_string_to_sign(&self, algorithm: &str, timestamp: &str, credential_scope: &str, canonical_request: &str) -> String {
-		let mut hasher = Sha256::new();
-		hasher.update(canonical_request.as_bytes());
-		let canonical_request = hasher.finalize();
-		format!("{algorithm}\n{timestamp}\n{credential_scope}\n{canonical_request:x}")
-	}
-	
-	pub fn get_authorization_header(&self, algorithm: &str, credential: &str, scope: &str, signed_headers: &[&str], signature: &str) -> String {
-		let signed_headers = signed_headers.join(";");
-		format!("{algorithm} Credential={credential}/{scope}, SignedHeaders={signed_headers}, Signature={signature}")
-	}
+    pub fn sign(&self, key: &[u8], msg: &[u8]) -> Vec<u8> {
+        let mut mac = HmacSha256::new_from_slice(key).unwrap();
+        mac.update(msg);
+        let result = mac.finalize();
+        result.into_bytes().to_vec()
+    }
+    
+    pub fn get_signing_key(&self, key: &str, date: &str, region: &str, service: &str) -> Vec<u8> {
+        let k_date = self.sign(format!("AWS4{key}").as_bytes(), date.as_bytes());
+        let k_region = self.sign(&k_date, region.as_bytes());
+        let k_service = self.sign(&k_region, service.as_bytes());
+        self.sign(&k_service, "aws4_request".as_bytes())
+    }
+    
+    pub fn get_signature(&self, signing_key: &[u8], string_to_sign: &str) -> String {
+        let signature = self.sign(signing_key, string_to_sign.as_bytes());
+        hex::encode(signature)
+    }
+    
+    pub fn get_canonical_request(&self, http_verb: &str, canonical_uri: &str, canonical_query_string: &str, canonical_headers: &[String], signed_headers: &[&str], payload: &str) -> String {
+        let canonical_headers = canonical_headers.join("\n");
+        let signed_headers = signed_headers.join(";");
+        let mut hasher = Sha256::new();
+        hasher.update(payload.as_bytes());
+        let hashed_payload = hasher.finalize();
+        format!("{http_verb}\n{canonical_uri}\n{canonical_query_string}\n{canonical_headers}\n\n{signed_headers}\n{hashed_payload:x}")
+    }
+    
+    pub fn get_string_to_sign(&self, algorithm: &str, timestamp: &str, credential_scope: &str, canonical_request: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(canonical_request.as_bytes());
+        let canonical_request = hasher.finalize();
+        format!("{algorithm}\n{timestamp}\n{credential_scope}\n{canonical_request:x}")
+    }
+    
+    pub fn get_authorization_header(&self, algorithm: &str, credential: &str, scope: &str, signed_headers: &[&str], signature: &str) -> String {
+        let signed_headers = signed_headers.join(";");
+        format!("{algorithm} Credential={credential}/{scope}, SignedHeaders={signed_headers}, Signature={signature}")
+    }
 
     pub fn infer_single(&self, input: &str, input_type: Option<&str>, truncate: Option<&str>) -> Result<Vec<f32>> {
 
@@ -588,129 +588,129 @@ impl AmazonBedrockClient {
         // Step 0b. create payload
 
         let body = match model_provider {
-			"amazon" => ureq::json!({
-				"inputText": input.to_owned(),
-			}),
-			"cohere" => ureq::json!({
-				"texts": [input.to_owned()],
-				"input_type": input_type.unwrap_or("search_document"),
-            	"truncate": truncate.unwrap_or("NONE")
-			}),
-			_ => ureq::json!({})
-		};
+            "amazon" => ureq::json!({
+                "inputText": input.to_owned(),
+            }),
+            "cohere" => ureq::json!({
+                "texts": [input.to_owned()],
+                "input_type": input_type.unwrap_or("search_document"),
+                "truncate": truncate.unwrap_or("NONE")
+            }),
+            _ => ureq::json!({})
+        };
 
-		// Step 0c. get date and time
+        // Step 0c. get date and time
 
-		let current_time = chrono::Utc::now();
-		let amazon_time = current_time.format("%Y%m%dT%H%M%SZ").to_string();
-		let amazon_date = current_time.format("%Y%m%d").to_string();
+        let current_time = chrono::Utc::now();
+        let amazon_time = current_time.format("%Y%m%dT%H%M%SZ").to_string();
+        let amazon_date = current_time.format("%Y%m%d").to_string();
 
-		// Step 1: create a canonical request
+        // Step 1: create a canonical request
 
-		let canonical_uri = format!("/model/{}/invoke", self.model_id);
-		let canonical_query_string = "";
-		let service_endpoint: String = format!("bedrock-runtime.{}.amazonaws.com", self.region);
-    	let endpoint: String = format!("https://{service_endpoint}/model/{}/invoke", self.model_id);
+        let canonical_uri = format!("/model/{}/invoke", self.model_id);
+        let canonical_query_string = "";
+        let service_endpoint: String = format!("bedrock-runtime.{}.amazonaws.com", self.region);
+        let endpoint: String = format!("https://{service_endpoint}/model/{}/invoke", self.model_id);
 
-		let mut signed_headers = vec![
-			"host",
-			"x-amz-date"
-		];
+        let mut signed_headers = vec![
+            "host",
+            "x-amz-date"
+        ];
 
-		if !self.aws_session_token.is_empty() {
-			signed_headers.push("x-amz-security-token");
-		}
+        if !self.aws_session_token.is_empty() {
+            signed_headers.push("x-amz-security-token");
+        }
 
-		let mut canonical_headers = vec![
-			format!("host:{service_endpoint}"),
-			format!("x-amz-date:{amazon_time}")
-		];
+        let mut canonical_headers = vec![
+            format!("host:{service_endpoint}"),
+            format!("x-amz-date:{amazon_time}")
+        ];
 
-		if !self.aws_session_token.is_empty() {
-			canonical_headers.push(
-				format!("x-amz-security-token:{}", self.aws_session_token)
-			);
-	    }
+        if !self.aws_session_token.is_empty() {
+            canonical_headers.push(
+                format!("x-amz-security-token:{}", self.aws_session_token)
+            );
+        }
 
-		let canonical_request = self.get_canonical_request(
-			"POST",
-			&canonical_uri,
-			canonical_query_string,
-			&canonical_headers,
-			&signed_headers,
-			&body.to_string()
-		);
-	
-		// Step 2: create string to sign
-	
-		let algorithm = "AWS4-HMAC-SHA256";
-		let service = "bedrock";
-		let credential_scope = format!("{amazon_date}/{}/{service}/aws4_request", self.region);
-	
-		let string_to_sign = self.get_string_to_sign(
-			algorithm,
-			&amazon_time,
-			&credential_scope,
-			&canonical_request
-		);
-	
-		// Step 3: calculate signature
-	
-		let signing_key = self.get_signing_key(
-			&self.aws_secret_access_key,
-			&amazon_date,
-			&self.region,
-			service
-		);
-	
-		let signature = self.get_signature(
-			&signing_key,
-			&string_to_sign
-		);
-	
-		// Step 4: add the signature to the request
-	
-		let authorization = self.get_authorization_header(
-			"AWS4-HMAC-SHA256",
-			&self.aws_access_key_id,
-			&credential_scope,
-			&signed_headers,
-			&signature
-		);
+        let canonical_request = self.get_canonical_request(
+            "POST",
+            &canonical_uri,
+            canonical_query_string,
+            &canonical_headers,
+            &signed_headers,
+            &body.to_string()
+        );
+    
+        // Step 2: create string to sign
+    
+        let algorithm = "AWS4-HMAC-SHA256";
+        let service = "bedrock";
+        let credential_scope = format!("{amazon_date}/{}/{service}/aws4_request", self.region);
+    
+        let string_to_sign = self.get_string_to_sign(
+            algorithm,
+            &amazon_time,
+            &credential_scope,
+            &canonical_request
+        );
+    
+        // Step 3: calculate signature
+    
+        let signing_key = self.get_signing_key(
+            &self.aws_secret_access_key,
+            &amazon_date,
+            &self.region,
+            service
+        );
+    
+        let signature = self.get_signature(
+            &signing_key,
+            &string_to_sign
+        );
+    
+        // Step 4: add the signature to the request
+    
+        let authorization = self.get_authorization_header(
+            "AWS4-HMAC-SHA256",
+            &self.aws_access_key_id,
+            &credential_scope,
+            &signed_headers,
+            &signature
+        );
 
         // Step 5: send the request
 
-		let request = ureq::post(&endpoint)
-			.set("Accept", "application/json")
-			.set("X-Amz-Date", &amazon_time)
-			.set("Authorization", &authorization);
+        let request = ureq::post(&endpoint)
+            .set("Accept", "application/json")
+            .set("X-Amz-Date", &amazon_time)
+            .set("Authorization", &authorization);
 
-		let request = if self.aws_session_token.is_empty() {
-			request.clone()
-		} else {
-			request.clone().set("X-Amz-Security-Token", &self.aws_session_token)
-		};
+        let request = if self.aws_session_token.is_empty() {
+            request.clone()
+        } else {
+            request.clone().set("X-Amz-Security-Token", &self.aws_session_token)
+        };
 
-		let response = request.clone()
-			.send_bytes(
-				body.to_string().as_bytes()
-			)
-			.unwrap()
-			.into_string()
-			.unwrap();
+        let response = request.clone()
+            .send_bytes(
+                body.to_string().as_bytes()
+            )
+            .unwrap()
+            .into_string()
+            .unwrap();
 
-		let data: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let data: serde_json::Value = serde_json::from_str(&response).unwrap();
 
         AmazonBedrockClient::parse_single_response(self, &data)
     }
 
     pub fn parse_single_response(&self, value: &serde_json::Value) -> Result<Vec<f32>> {
 
-		let model_provider = self.model_id.split('.').next().unwrap().to_string();
+        let model_provider = self.model_id.split('.').next().unwrap().to_string();
 
-		let output: Result<Vec<f32>>;
+        let output: Result<Vec<f32>>;
         if model_provider == "amazon" {
-			output = value
+            output = value
                 .get("embedding")
                 .ok_or_else(|| Error::new_message("expected 'embedding' key in response body"))
                 .and_then(|v| {
@@ -765,7 +765,7 @@ impl AmazonBedrockClient {
         } else {
             todo!();
         }
-		output
+        output
     }
 }
 

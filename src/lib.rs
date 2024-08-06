@@ -130,10 +130,10 @@ pub fn rembed(
         Client::Ollama(client) => client.infer_single(input)?,
         Client::Llamafile(client) => client.infer_single(input)?,
         Client::AmazonBedrock(client) => {
-			let input_type = values.get(2).and_then(|v| api::value_text(v).ok());
-			let truncate = values.get(3).and_then(|v| api::value_text(v).ok());
-			client.infer_single(input, input_type, truncate)?
-		}
+            let input_type = values.get(2).and_then(|v| api::value_text(v).ok());
+            let truncate = values.get(3).and_then(|v| api::value_text(v).ok());
+            client.infer_single(input, input_type, truncate)?
+        }
         Client::Nomic(client) => {
             let input_type = values.get(2).and_then(|v| api::value_text(v).ok());
             client.infer_single(input, input_type)?
@@ -173,7 +173,7 @@ pub fn sqlite3_rembed_init(db: *mut sqlite3) -> Result<()> {
     )?;
     define_scalar_function_with_aux(db, "rembed", 2, rembed, flags, Rc::clone(&c))?;
     define_scalar_function_with_aux(db, "rembed", 3, rembed, flags, Rc::clone(&c))?;
-	define_scalar_function_with_aux(db, "rembed", 4, rembed, flags, Rc::clone(&c))?;
+    define_scalar_function_with_aux(db, "rembed", 4, rembed, flags, Rc::clone(&c))?;
     define_scalar_function(
         db,
         "rembed_client_options",
