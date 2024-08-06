@@ -695,9 +695,19 @@ impl AmazonBedrockClient {
             .send_bytes(
                 body.to_string().as_bytes()
             )
-            .unwrap()
+            .map_err(
+                |error| 
+                    Error::new_message(
+                        format!("Error sending HTTP request: {error}")
+                    )
+            )?
             .into_string()
-            .unwrap();
+            .map_err(
+                |error|
+                    Error::new_message(
+                        format!("Error parsing HTTP response: {error}")
+                    )
+            )?;
 
         let data: serde_json::Value = serde_json::from_str(&response).unwrap();
 
