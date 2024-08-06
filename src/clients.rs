@@ -612,6 +612,7 @@ impl AmazonBedrockClient {
                 "texts": [
                     input.to_owned()
                 ],
+                "input_type": "search_document"
             }),
             _ => ureq::json!({})
         };
