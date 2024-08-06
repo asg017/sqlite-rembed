@@ -564,6 +564,18 @@ pub struct AmazonBedrockClient {
 }
 const DEFAULT_AWS_REGION: &str = "us-east-1";
 
+fn merge(a: &mut serde_json::Value, b: serde_json::Value) {
+    match (a, b) {
+        (a @ &mut serde_json::Value::Object(_), serde_json::Value::Object(b)) => {
+            let a = a.as_object_mut().unwrap();
+            for (k, v) in b {
+                merge(a.entry(k).or_insert(serde_json::Value::Null), v);
+            }
+        }
+        (a, b) => *a = b,
+    }
+}
+
 impl AmazonBedrockClient {
     pub fn new<S: Into<String>>(model_id: S, region: Option<String>, aws_access_key_id: Option<String>, aws_secret_access_key: Option<String>, aws_session_token: Option<String>) -> Result<Self> {
         Ok(Self {
@@ -581,30 +593,37 @@ impl AmazonBedrockClient {
         })
     }
 
-    pub fn infer_single(&self, input: &str, input_type: Option<&str>, truncate: Option<&str>) -> Result<Vec<f32>> {
-
-        // Step 0a. extract model provider
+    pub fn infer_single(&self, input: &str, inference_options: Option<serde_json::Value>) -> Result<Vec<f32>> {
+        
+        // Step 0a: extract model provider
 
         let model_provider = self.model_id
             .split('.')
             .next()
             .expect("Error getting model provider");
         
-        // Step 0b. create payload
+        // Step 0b: create payload
 
-        let body = match model_provider {
+        let mut body = match model_provider {
             "amazon" => ureq::json!({
                 "inputText": input.to_owned(),
             }),
             "cohere" => ureq::json!({
-                "texts": [input.to_owned()],
-                "input_type": input_type.unwrap_or("search_document"),
-                "truncate": truncate.unwrap_or("NONE")
+                "texts": [
+                    input.to_owned()
+                ],
             }),
             _ => ureq::json!({})
         };
 
-        // Step 0c. get date and time
+        let inference_options = match inference_options {
+            Some(v) => v,
+            None => ureq::json!({})
+        };
+
+        merge(&mut body, inference_options);
+
+        // Step 0c: get date and time
 
         let current_time = chrono::Utc::now();
         let amazon_time = current_time.format("%Y%m%dT%H%M%SZ").to_string();
