@@ -577,13 +577,16 @@ impl AmazonBedrockClient {
 	}
 
     pub fn infer_single(&self, input: &str) -> Result<Vec<f32>> {
-        // Get model provider
+
+        // Step 0a. extract model provider
+
         let model_provider = self.model_id
             .split('.')
             .next()
             .unwrap();
         
-        // Create payload
+        // Step 0b. create payload
+
         let body = match model_provider {
 			"amazon" => ureq::json!({
 				"inputText": input.to_owned(),
@@ -596,40 +599,56 @@ impl AmazonBedrockClient {
 			_ => ureq::json!({})
 		};
 
-		// Get date and time
+		// Step 0c. get date and time
+
 		let current_time = chrono::Utc::now();
 		let amazon_time = current_time.format("%Y%m%dT%H%M%SZ").to_string();
 		let amazon_date = current_time.format("%Y%m%d").to_string();
 
 		// Step 1: create a canonical request
+
 		let canonical_uri = format!("/model/{}/invoke", self.model_id);
 		let canonical_query_string = "";
 		let service_endpoint: String = format!("bedrock-runtime.{}.amazonaws.com", self.region);
     	let endpoint: String = format!("https://{service_endpoint}/model/{}/invoke", self.model_id);
+
+		let mut signed_headers = vec![
+			"host",
+			"x-amz-date"
+		];
+
+		if !self.aws_session_token.is_empty() {
+			signed_headers.push("x-amz-security-token");
+		}
+
+		let mut canonical_headers = vec![
+			format!("host:{service_endpoint}"),
+			format!("x-amz-date:{amazon_time}")
+		];
+
+		if !self.aws_session_token.is_empty() {
+			canonical_headers.push(
+				format!("x-amz-security-token:{}", self.aws_session_token)
+			);
+	    }
+
 		let canonical_request = self.get_canonical_request(
 			"POST",
 			&canonical_uri,
 			canonical_query_string,
-			&[
-				format!("host:{service_endpoint}"),
-				format!("x-amz-date:{amazon_time}"),
-				format!("x-amz-security-token:{}", self.aws_session_token)
-			],
-			&[
-				"host",
-				"x-amz-date",
-				"x-amz-security-token"
-			],
+			&canonical_headers,
+			&signed_headers,
 			&body.to_string()
 		);
 	
 		// Step 2: create string to sign
 	
+		let algorithm = "AWS4-HMAC-SHA256";
 		let service = "bedrock";
 		let credential_scope = format!("{amazon_date}/{}/{service}/aws4_request", self.region);
 	
 		let string_to_sign = self.get_string_to_sign(
-			"AWS4-HMAC-SHA256",
+			algorithm,
 			&amazon_time,
 			&credential_scope,
 			&canonical_request
@@ -655,21 +674,24 @@ impl AmazonBedrockClient {
 			"AWS4-HMAC-SHA256",
 			&self.aws_access_key_id,
 			&credential_scope,
-			&[
-				"host",
-				"x-amz-date",
-				"x-amz-security-token"
-			],
+			&signed_headers,
 			&signature
 		);
 
         // Step 5: send the request
 
-		let response = ureq::post(&endpoint)
+		let request = ureq::post(&endpoint)
 			.set("Accept", "application/json")
 			.set("X-Amz-Date", &amazon_time)
-			.set("X-Amz-Security-Token", &self.aws_session_token)
-			.set("Authorization", &authorization)
+			.set("Authorization", &authorization);
+
+		let request = if !self.aws_session_token.is_empty() {
+			request.clone()
+		} else {
+			request.clone().set("X-Amz-Security-Token", &self.aws_session_token)
+		};
+
+		let response = request.clone()
 			.send_bytes(
 				body.to_string().as_bytes()
 			)
@@ -719,7 +741,7 @@ impl AmazonBedrockClient {
                     })
                 })
                 .and_then(|v| {
-                    v.get(0)
+                    v.first()
                         .ok_or_else(|| Error::new_message("expected 'embeddings.0' path in response body"))
                 })
                 .and_then(|v| {
