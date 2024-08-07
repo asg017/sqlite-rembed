@@ -632,10 +632,15 @@ impl AmazonBedrockClient {
 
         // Step 1: create a canonical request
 
-        let canonical_uri = format!("/model/{}/invoke", self.model_id);
+        // Fix: escape 'bad' characters (*, /, :) in model_id
+		// https://github.com/curl/curl/issues/11794
+        let model_id: String = url::form_urlencoded::byte_serialize(self.model_id.as_bytes()).collect();
+        let escaped_model_id: String = url::form_urlencoded::byte_serialize(model_id.as_bytes()).collect();
+
+        let canonical_uri = format!("/model/{}/invoke", escaped_model_id);
         let canonical_query_string = "";
         let service_endpoint: String = format!("bedrock-runtime.{}.amazonaws.com", self.region);
-        let endpoint: String = format!("https://{service_endpoint}/model/{}/invoke", self.model_id);
+        let endpoint: String = format!("https://{service_endpoint}/model/{}/invoke", model_id);
 
         let mut signed_headers = vec![
             "host",
