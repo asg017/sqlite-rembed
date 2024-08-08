@@ -511,27 +511,31 @@ impl LlamafileClient {
 
 /* AWS SigV4 helpe functions */
 
+/// Computes HMAC on a message by using the SHA256 algorithm with the provided signing key.
 pub(crate) fn sign(key: &[u8], msg: &[u8]) -> Vec<u8> {
     let mut mac = HmacSha256::new_from_slice(key).expect("Error when signing message");
     mac.update(msg);
     let result = mac.finalize();
     result.into_bytes().to_vec()
 }
-
-pub(crate) fn get_signing_key(key: &str, date: &str, region: &str, service: &str) -> Vec<u8> {
+/// Derives a signing key by performing a succession of keyed hash operations (HMAC operations)
+/// on the request date, Region, and service, with the AWS secret access key as the key for the
+/// initial hashing operation.
+pub(crate) fn derive_signing_key(key: &str, date: &str, region: &str, service: &str) -> Vec<u8> {
     let k_date = sign(format!("AWS4{key}").as_bytes(), date.as_bytes());
     let k_region = sign(&k_date, region.as_bytes());
     let k_service = sign(&k_region, service.as_bytes());
     sign(&k_service, "aws4_request".as_bytes())
 }
 
-pub(crate) fn get_signature(signing_key: &[u8], string_to_sign: &str) -> String {
+/// Calculates the signature by performing a keyed hash operation on the string to sign.
+pub(crate) fn calculate_signature(signing_key: &[u8], string_to_sign: &str) -> String {
     let signature = sign(signing_key, string_to_sign.as_bytes());
     hex::encode(signature)
 }
 
-    
-pub(crate) fn get_canonical_request(http_verb: &str, canonical_uri: &str, canonical_query_string: &str, canonical_headers: &[String], signed_headers: &[&str], payload: &str) -> String {
+/// Arranges the contents of the request (host, action, headers, &c.) into a standard canonical format.
+pub(crate) fn create_canonical_request(http_verb: &str, canonical_uri: &str, canonical_query_string: &str, canonical_headers: &[String], signed_headers: &[&str], payload: &str) -> String {
     let canonical_headers = canonical_headers.join("\n");
     let signed_headers = signed_headers.join(";");
     let mut hasher = Sha256::new();
@@ -540,14 +544,17 @@ pub(crate) fn get_canonical_request(http_verb: &str, canonical_uri: &str, canoni
     format!("{http_verb}\n{canonical_uri}\n{canonical_query_string}\n{canonical_headers}\n\n{signed_headers}\n{hashed_payload:x}")
 }
 
-pub(crate) fn get_string_to_sign(algorithm: &str, timestamp: &str, credential_scope: &str, canonical_request: &str) -> String {
+/// Creates a string to sign with the canonical request and extra information such as the algorithm, 
+/// request date, credential scope, and the hash of the canonical request.
+pub(crate) fn create_string_to_sign(algorithm: &str, timestamp: &str, credential_scope: &str, canonical_request: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(canonical_request.as_bytes());
     let canonical_request = hasher.finalize();
     format!("{algorithm}\n{timestamp}\n{credential_scope}\n{canonical_request:x}")
 }
 
-pub(crate) fn get_authorization_header(algorithm: &str, credential: &str, scope: &str, signed_headers: &[&str], signature: &str) -> String {
+/// Creates the Authorization header for the request.
+pub(crate) fn create_authorization_header(algorithm: &str, credential: &str, scope: &str, signed_headers: &[&str], signature: &str) -> String {
     let signed_headers = signed_headers.join(";");
     format!("{algorithm} Credential={credential}/{scope}, SignedHeaders={signed_headers}, Signature={signature}")
 }
@@ -562,6 +569,7 @@ pub struct AmazonBedrockClient {
     aws_secret_access_key: String,
     aws_session_token: String
 }
+const HASH_ALGORITHM: &str = "AWS4-HMAC-SHA256";
 const DEFAULT_AWS_REGION: &str = "us-east-1";
 
 fn merge(a: &mut serde_json::Value, b: serde_json::Value) {
@@ -662,7 +670,7 @@ impl AmazonBedrockClient {
             );
         }
 
-        let canonical_request = get_canonical_request(
+        let canonical_request = create_canonical_request(
             "POST",
             &canonical_uri,
             canonical_query_string,
@@ -673,11 +681,11 @@ impl AmazonBedrockClient {
     
         // Step 2: create string to sign
     
-        let algorithm = "AWS4-HMAC-SHA256";
+        let algorithm = HASH_ALGORITHM;
         let service = "bedrock";
         let credential_scope = format!("{amazon_date}/{}/{service}/aws4_request", self.region);
     
-        let string_to_sign = get_string_to_sign(
+        let string_to_sign = create_string_to_sign(
             algorithm,
             &amazon_time,
             &credential_scope,
@@ -686,22 +694,22 @@ impl AmazonBedrockClient {
     
         // Step 3: calculate signature
     
-        let signing_key = get_signing_key(
+        let signing_key = derive_signing_key(
             &self.aws_secret_access_key,
             &amazon_date,
             &self.region,
             service
         );
     
-        let signature = get_signature(
+        let signature = calculate_signature(
             &signing_key,
             &string_to_sign
         );
     
         // Step 4: add the signature to the request
     
-        let authorization = get_authorization_header(
-            "AWS4-HMAC-SHA256",
+        let authorization = create_authorization_header(
+            HASH_ALGORITHM,
             &self.aws_access_key_id,
             &credential_scope,
             &signed_headers,
