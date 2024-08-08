@@ -509,7 +509,7 @@ impl LlamafileClient {
     }
 }
 
-/* AWS SigV4 helpe functions */
+/* AWS SigV4 */
 
 /// Computes HMAC on a message by using the SHA256 algorithm with the provided signing key.
 pub(crate) fn sign(key: &[u8], msg: &[u8]) -> Vec<u8> {
@@ -559,7 +559,7 @@ pub(crate) fn create_authorization_header(algorithm: &str, credential: &str, sco
     format!("{algorithm} Credential={credential}/{scope}, SignedHeaders={signed_headers}, Signature={signature}")
 }
 
-/* Amazon Bedrock Client */
+/* Amazon Bedrock */
 
 #[derive(Clone)]
 pub struct AmazonBedrockClient {
