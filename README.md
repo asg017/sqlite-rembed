@@ -31,6 +31,7 @@ Other pre-defined clients include:
 | `mixedbread` | [MixedBread](https://www.mixedbread.ai/api-reference#quick-start-guide)              | `https://api.mixedbread.ai/v1/embeddings/`     | `MIXEDBREAD_API_KEY` |
 | `llamafile`  | [llamafile](https://github.com/Mozilla-Ocho/llamafile)                               | `http://localhost:8080/embedding`              | None                 |
 | `ollama`     | [Ollama](https://github.com/ollama/ollama/blob/main/docs/api.md#generate-embeddings) | `http://localhost:11434/api/embeddings`        | None                 |
+| `googleai`   | [GoogleAI](https://ai.google.dev/gemini-api)                                         | `https://generativelanguage.googleapis.com/v1beta/models`         | `GOOGLE_AI_API_KEY`     |
 
 Different client options can be specified with `remebed_client_options()`. For example, if you have a different OpenAI-compatible service you want to use, then you can use:
 

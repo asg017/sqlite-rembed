@@ -505,6 +505,91 @@ impl LlamafileClient {
 }
 
 #[derive(Clone)]
+pub struct GoogleAiClient {
+    model: String,
+    url: String,
+    key: String,
+}
+const DEFAULT_GOOGLE_AI_URL: &str = "https://generativelanguage.googleapis.com/v1beta/models";
+const DEFAULT_GOOGLE_AI_API_KEY_ENV: &str = "GOOGLE_AI_API_KEY";
+
+impl GoogleAiClient {
+    pub fn new<S: Into<String>>(
+        model: S,
+        url: Option<String>,
+        key: Option<String>,
+    ) -> Result<Self> {
+        Ok(Self {
+            model: model.into(),
+            url: url.unwrap_or(DEFAULT_GOOGLE_AI_URL.to_owned()),
+            key: match key {
+                Some(key) => key,
+                None => try_env_var(DEFAULT_GOOGLE_AI_API_KEY_ENV)?,
+            },
+        })
+    }
+    pub fn infer_single(&self, input: &str) -> Result<Vec<f32>> {
+        let body = serde_json::json!({
+            "model": format!("models/{}", self.model).clone(),
+            "content": {
+                "parts": [
+                    {
+                        "text": input,
+                    }
+                ]
+            }
+        });
+
+        let target_url = format!("{}/{}:embedContent?key={}", self.url, self.model, self.key);
+
+        let data: serde_json::Value = ureq::post(&target_url)
+            .set("Content-Type", "application/json")
+            .send_bytes(
+                serde_json::to_vec(&body)
+                    .map_err(|error| {
+                        Error::new_message(format!("Error serializing body to JSON: {error}"))
+                    })?
+                    .as_ref(),
+            )
+            .map_err(|error| Error::new_message(format!("Error sending HTTP request: {error}")))?
+            .into_json()
+            .map_err(|error| {
+                Error::new_message(format!("Error parsing HTTP response as JSON: {error}"))
+            })?;
+        GoogleAiClient::parse_single_response(data)
+    }
+
+    pub fn parse_single_response(value: serde_json::Value) -> Result<Vec<f32>> {
+        value
+            .get("embedding")
+            .ok_or_else(|| Error::new_message("expected 'embedding' key in response body"))
+            .and_then(|v| {
+                v.get("values").ok_or_else(|| {
+                    Error::new_message("expected 'embedding.values' path in response body")
+                })
+            })
+            .and_then(|v| {
+                v.as_array().ok_or_else(|| {
+                    Error::new_message("expected 'embedding.values' path to be an array")
+                })
+            })
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| {
+                        v.as_f64()
+                            .ok_or_else(|| {
+                                Error::new_message(
+                                    "expected 'embedding.values' array to contain floats",
+                                )
+                            })
+                            .map(|f| f as f32)
+                    })
+                    .collect()
+            })
+    }
+}
+
+#[derive(Clone)]
 pub enum Client {
     OpenAI(OpenAiClient),
     Nomic(NomicClient),
@@ -513,4 +598,5 @@ pub enum Client {
     Llamafile(LlamafileClient),
     Jina(JinaClient),
     Mixedbread(MixedbreadClient),
+    GoogleAI(GoogleAiClient),
 }
