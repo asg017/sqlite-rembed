@@ -8,6 +8,11 @@ serde_json = "1.0.117"
 sqlite-loadable = "0.0.6-alpha.6"
 ureq = {version="2.9.7", features=["json"]}
 zerocopy = "0.7.34"
+chrono = "0.4.38"
+hex = "0.4.3"
+hmac = "0.12.1"
+sha2 = "0.10.8"
+url = "2.5.2"
 
 [lib]
 crate-type=["cdylib", "staticlib", "lib"]

@@ -10,7 +10,7 @@ use std::{cell::RefCell, collections::HashMap, marker::PhantomData, mem, os::raw
 use crate::clients::MixedbreadClient;
 use crate::{
     clients::{
-        Client, CohereClient, JinaClient, LlamafileClient, NomicClient, OllamaClient, OpenAiClient,
+        Client, CohereClient, JinaClient, LlamafileClient, NomicClient, OllamaClient, OpenAiClient, AmazonBedrockClient,
     },
     CLIENT_OPTIONS_POINTER_NAME,
 };
@@ -99,6 +99,7 @@ impl<'vtab> VTabWriteable<'vtab> for ClientsTable {
                         "cohere" => Client::Cohere(CohereClient::new(name, None, None)?),
                         "ollama" => Client::Ollama(OllamaClient::new(name, None)),
                         "llamafile" => Client::Llamafile(LlamafileClient::new(None)),
+                        "bedrock" => Client::AmazonBedrock(AmazonBedrockClient::new(name, None, None, None, None)?),
                         text => {
                             return Err(Error::new_message(format!(
                                 "'{text}' is not a valid rembed client."

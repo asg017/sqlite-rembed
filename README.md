@@ -1,6 +1,6 @@
 # `sqlite-rembed`
 
-A SQLite extension for generating text embeddings from remote APIs (OpenAI, Nomic, Cohere, llamafile, Ollama, etc.). A sister project to [`sqlite-vec`](https://github.com/asg017/sqlite-vec) and [`sqlite-lembed`](https://github.com/asg017/sqlite-lembed). A work-in-progress!
+A SQLite extension for generating text embeddings from remote APIs (OpenAI, Nomic, Cohere, llamafile, Ollama, Amazon Bedrock, etc.). A sister project to [`sqlite-vec`](https://github.com/asg017/sqlite-vec) and [`sqlite-lembed`](https://github.com/asg017/sqlite-lembed). A work-in-progress!
 
 ## Usage
 
@@ -31,8 +31,9 @@ Other pre-defined clients include:
 | `mixedbread` | [MixedBread](https://www.mixedbread.ai/api-reference#quick-start-guide)              | `https://api.mixedbread.ai/v1/embeddings/`     | `MIXEDBREAD_API_KEY` |
 | `llamafile`  | [llamafile](https://github.com/Mozilla-Ocho/llamafile)                               | `http://localhost:8080/embedding`              | None                 |
 | `ollama`     | [Ollama](https://github.com/ollama/ollama/blob/main/docs/api.md#generate-embeddings) | `http://localhost:11434/api/embeddings`        | None                 |
+| `bedrock`    | [Amazon Bedrock](https://aws.amazon.com/bedrock/)                                    | `https://bedrock-runtime.REGION.amazonaws.com` | Use [temporary AWS Credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html)                 |
 
-Different client options can be specified with `remebed_client_options()`. For example, if you have a different OpenAI-compatible service you want to use, then you can use:
+Different client options can be specified with `rembed_client_options()`. For example, if you have a different OpenAI-compatible service you want to use, then you can use:
 
 ```sql
 INSERT INTO temp.rembed_clients(name, options) VALUES
