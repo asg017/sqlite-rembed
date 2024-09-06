@@ -20,7 +20,7 @@ jobs:
           name: sqlite-rembed-linux-x86_64-extension
           path: dist/*
   build-macos-x86_64-extension:
-    runs-on: macos-11
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
