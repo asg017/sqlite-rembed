@@ -447,6 +447,26 @@ impl OllamaClient {
             })?;
         OllamaClient::parse_single_response(data)
     }
+    pub fn infer_multiple(&self, input: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        let mut body = serde_json::Map::new();
+        body.insert("model".to_owned(), self.model.to_owned().into());
+
+        body.insert("input".to_owned(), input.into());
+        let body = serde_json::to_vec(&body).map_err(|error| {
+            Error::new_message(format!("Error serializing body to JSON: {error}"))
+        })?;
+
+        let data: serde_json::Value = ureq::post("http://localhost:11434/v1/embeddings")
+            .set("Content-Type", "application/json")
+            .send_bytes(body.as_ref())
+            .map_err(|error| Error::new_message(format!("Error sending HTTP request: {error}")))?
+            .into_json()
+            .map_err(|error| {
+                Error::new_message(format!("Error parsing HTTP response as JSON: {error}"))
+            })?;
+        OllamaClient::parse_multiple_response(data)
+    }
+
     pub fn parse_single_response(value: serde_json::Value) -> Result<Vec<f32>> {
         value
             .get("embedding")
@@ -466,6 +486,36 @@ impl OllamaClient {
                     })
                     .collect()
             })
+    }
+    pub fn parse_multiple_response(value: serde_json::Value) -> Result<Vec<Vec<f32>>> {
+        let data = value
+            .get("data")
+            .ok_or_else(|| Error::new_message("expected 'data' key in response body"))
+            .and_then(|v| {
+                v.as_array()
+                    .ok_or_else(|| Error::new_message("expected 'data' path to be an array"))
+            })
+            .unwrap();
+
+        data.iter()
+            .map(|v| {
+                let embedding_object = v.as_object().unwrap();
+                embedding_object
+                    .get("embedding")
+                    .unwrap()
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| {
+                        v.as_f64()
+                            .ok_or_else(|| {
+                                Error::new_message("expected 'embedding' array to contain floats")
+                            })
+                            .map(|f| f as f32)
+                    })
+                    .collect()
+            })
+            .collect()
     }
 }
 

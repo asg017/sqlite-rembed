@@ -1,3 +1,4 @@
+mod batch;
 mod clients;
 mod clients_vtab;
 
@@ -5,11 +6,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use batch::BatchTable;
 use clients::{Client, CohereClient, LlamafileClient, NomicClient, OllamaClient, OpenAiClient};
 use clients_vtab::ClientsTable;
 use sqlite_loadable::{
-    api, define_scalar_function, define_scalar_function_with_aux, define_virtual_table_writeablex,
-    prelude::*, Error, Result,
+    api, define_scalar_function, define_scalar_function_with_aux, define_table_function,
+    define_virtual_table_writeablex, prelude::*, Error, Result,
 };
 use zerocopy::AsBytes;
 
@@ -165,5 +167,6 @@ pub fn sqlite3_rembed_init(db: *mut sqlite3) -> Result<()> {
         flags,
     )?;
     define_virtual_table_writeablex::<ClientsTable>(db, "rembed_clients", Some(Rc::clone(&c)))?;
+    define_table_function::<BatchTable>(db, "rembed_batch", Some(Rc::clone(&c)))?;
     Ok(())
 }
