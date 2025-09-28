@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sqlite-rembed"
+version = "0.0.1a9"
+description = "Generate text and image embeddings from remote APIs inside SQLite"
+authors = [
+    {name = "Alex Garcia", email = "alexsebastian.garcia@gmail.com"},
+]
+maintainers = [
+    {name = "Alex Garcia", email = "alexsebastian.garcia@gmail.com"},
+]
+readme = "README.md"
+license = {text = "MIT OR Apache-2.0"}
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["sqlite", "embeddings", "ai", "vector", "genai", "openai", "gemini", "ollama"]
+
+[project.urls]
+Homepage = "https://github.com/asg017/sqlite-rembed"
+Documentation = "https://github.com/asg017/sqlite-rembed/tree/main/docs"
+Repository = "https://github.com/asg017/sqlite-rembed"
+Issues = "https://github.com/asg017/sqlite-rembed/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sqlite_rembed*"]
+
+[tool.setuptools.package-data]
+sqlite_rembed = ["*.so", "*.dylib", "*.dll"]

@@ -1,0 +1,147 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index 1234567..8901234 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -17,6 +17,7 @@ use zerocopy::AsBytes;
+ const FLOAT32_VECTOR_SUBTYPE: u32 = 223;
+ const CLIENT_OPTIONS_POINTER_NAME: &str = "rembed0.client_options_pointer";
++const MULTIMODAL_CLIENT_OPTIONS_POINTER_NAME: &str = "rembed0.multimodal_client_options_pointer";
+
+ // Define column indices for clients table
+ #[repr(i32)]
+@@ -50,6 +51,14 @@ pub fn legacy_provider_to_model(provider: &str, name: &str) -> String {
+     }
+ }
+
++// Enum to hold either type of client for the virtual table
++enum ClientType {
++    Embedding(EmbeddingClient),
++    Multimodal(MultimodalClient),
++}
++
++// The main function that handles client options and determines which type to create
++// This is called when using rembed_client_options() in SQL
+ pub fn rembed_client_options(
+     context: *mut sqlite3_context,
+     values: &[*mut sqlite3_value],
+@@ -74,24 +83,42 @@ pub fn rembed_client_options(
+         }
+     }
+
+-    // Build the model identifier based on format and options
+-    let model = if let Some(format) = format {
+-        // Legacy compatibility: convert old format to genai model
+-        let model_name = options.get("model")
+-            .ok_or_else(|| Error::new_message("'model' option is required"))?;
+-        legacy_provider_to_model(&format, model_name)
+-    } else if let Some(model) = options.get("model") {
+-        model.clone()
++    // Check if this is a multimodal client (has embedding_model)
++    if let Some(embedding_model) = options.get("embedding_model") {
++        // Create multimodal client
++        let vision_model = if let Some(format) = format {
++            let model_name = options.get("model")
++                .ok_or_else(|| Error::new_message("'model' option is required"))?;
++            legacy_provider_to_model(&format, model_name)
++        } else if let Some(model) = options.get("model") {
++            model.clone()
++        } else {
++            return Err(Error::new_message("'model' or 'format' key is required for vision model"));
++        };
++
++        let client = MultimodalClient::new(vision_model, embedding_model.clone())?;
++        api::result_pointer(context, MULTIMODAL_CLIENT_OPTIONS_POINTER_NAME, client);
+     } else {
+-        return Err(Error::new_message("'model' or 'format' key is required"));
+-    };
++        // Create regular embedding client
++        let model = if let Some(format) = format {
++            let model_name = options.get("model")
++                .ok_or_else(|| Error::new_message("'model' option is required"))?;
++            legacy_provider_to_model(&format, model_name)
++        } else if let Some(model) = options.get("model") {
++            model.clone()
++        } else {
++            return Err(Error::new_message("'model' or 'format' key is required"));
++        };
+
+-    let api_key = options.get("key").cloned()
+-        .or_else(|| options.get("api_key").cloned());
++        let api_key = options.get("key").cloned()
++            .or_else(|| options.get("api_key").cloned());
+
+-    // Create the client
+-    let client = EmbeddingClient::new(model, api_key)?;
++        let client = EmbeddingClient::new(model, api_key)?;
++        api::result_pointer(context, CLIENT_OPTIONS_POINTER_NAME, client);
++    }
+
+-    api::result_pointer(context, CLIENT_OPTIONS_POINTER_NAME, client);
++    // Note: The virtual table update method needs to be updated to handle both pointer types
++    // and insert into the correct HashMap (clients or multimodal_clients)
+
+     Ok(())
+ }
+@@ -195,6 +222,7 @@ impl ClientsTable {
+ struct ClientsTable {
+     base: sqlite_loadable::table::VTab,
+     clients: Rc<RefCell<HashMap<String, EmbeddingClient>>>,
++    multimodal_clients: Rc<RefCell<HashMap<String, MultimodalClient>>>,
+ }
+
+ impl VTab<'_> for ClientsTable {
+@@ -240,19 +268,45 @@ impl<'vtab> VTabWriteable<'vtab> for ClientsTable {
+             }
+             UpdateOperation::Insert { values, rowid: _ } => {
+                 let name = api::value_text(&values[0])?;
+
+-                let client = match api::value_type(&values[1]) {
++                // Determine client type and insert into appropriate HashMap
++                match api::value_type(&values[1]) {
+                     ValueType::Text => {
+                         let options = api::value_text(&values[1])?;
+-                        // Parse the options to get model and api key
+                         let config = parse_client_options(name, options)?;
+-                        // Create client with the model and api key
+-                        EmbeddingClient::new(config.model, config.api_key)?
++
++                        // Check if it's a multimodal client based on options
++                        if options.contains("embedding_model") {
++                            // Parse as multimodal config
++                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(options) {
++                                if let (Some(vision_model), Some(embedding_model)) = (
++                                    json.get("model").and_then(|v| v.as_str()),
++                                    json.get("embedding_model").and_then(|v| v.as_str())
++                                ) {
++                                    let client = MultimodalClient::new(
++                                        vision_model.to_string(),
++                                        embedding_model.to_string()
++                                    )?;
++                                    self.multimodal_clients.borrow_mut().insert(name.to_owned(), client);
++                                    return Ok(());
++                                }
++                            }
++                        }
++
++                        // Regular embedding client
++                        let client = EmbeddingClient::new(config.model, config.api_key)?;
++                        self.clients.borrow_mut().insert(name.to_owned(), client);
+                     }
+                     ValueType::Null => unsafe {
+-                        // Handle pointer from rembed_client_options
+-                        if let Some(client) =
+-                            api::value_pointer::<EmbeddingClient>(&values[1], CLIENT_OPTIONS_POINTER_NAME)
+-                        {
++                        // Check for multimodal client pointer first
++                        if let Some(client) = api::value_pointer::<MultimodalClient>(
++                            &values[1],
++                            MULTIMODAL_CLIENT_OPTIONS_POINTER_NAME
++                        ) {
++                            self.multimodal_clients.borrow_mut().insert(name.to_owned(), (*client).clone());
++                        } else if let Some(client) = api::value_pointer::<EmbeddingClient>(
++                            &values[1],
++                            CLIENT_OPTIONS_POINTER_NAME
++                        ) {
+                             (*client).clone()
+                         } else {
+                             return Err(Error::new_message("client options required"));

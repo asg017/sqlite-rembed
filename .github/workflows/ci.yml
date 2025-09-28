@@ -1,0 +1,213 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Rust tests and linting
+  rust-check:
+    name: Rust Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-git-
+
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Run tests
+        run: cargo test --verbose
+
+  # Build and test on Linux x86_64
+  build-linux-x86_64:
+    name: Linux x86_64
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Build extension
+        run: |
+          make loadable
+          make python
+
+      - name: Install Python test dependencies
+        run: |
+          pip install pytest sqlite-vec
+          pip install -e bindings/python/
+
+      - name: Run Python tests
+        run: |
+          python test_user_case.py
+          python test_client_fix_complete.py
+        env:
+          # Use mock provider for CI
+          MOCK_EMBEDDINGS: "true"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-rembed-linux-x86_64
+          path: |
+            target/release/libsqlite_rembed.so
+            dist/
+
+  # Build and test on macOS x86_64
+  build-macos-x86_64:
+    name: macOS x86_64
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Build extension
+        run: |
+          make loadable
+          make python
+
+      - name: Install Python test dependencies
+        run: |
+          pip install pytest sqlite-vec
+          pip install -e bindings/python/
+
+      - name: Run Python tests
+        run: |
+          python test_user_case.py
+          python test_client_fix_complete.py
+        env:
+          MOCK_EMBEDDINGS: "true"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-rembed-macos-x86_64
+          path: |
+            target/release/libsqlite_rembed.dylib
+            dist/
+
+  # Build and test on macOS ARM64
+  build-macos-aarch64:
+    name: macOS ARM64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Build extension
+        run: |
+          make loadable
+          make python
+
+      - name: Install Python test dependencies
+        run: |
+          pip install pytest sqlite-vec
+          pip install -e bindings/python/
+
+      - name: Run Python tests
+        run: |
+          python test_user_case.py
+          python test_client_fix_complete.py
+        env:
+          MOCK_EMBEDDINGS: "true"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-rembed-macos-aarch64
+          path: |
+            target/release/libsqlite_rembed.dylib
+            dist/
+
+  # Build on Windows
+  build-windows-x86_64:
+    name: Windows x86_64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build extension
+        run: cargo build --release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-rembed-windows-x86_64
+          path: target/release/sqlite_rembed.dll
+
+  # Integration tests with real providers (optional, only on main)
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          sleep 5
+          ollama pull nomic-embed-text
+
+      - name: Build extension
+        run: make loadable
+
+      - name: Run integration tests
+        run: |
+          cargo test --features integration_tests
+        env:
+          OLLAMA_HOST: http://localhost:11434

@@ -1,3 +1,56 @@
+# Rust
 /target
+Cargo.lock
+
+# Environment
 .env
+.env.local
+.env.*.local
+
+# Build outputs
 dist/
+build/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dylib
+*.dll
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# uv
+.venv/
+uv.lock
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+test_venv/
+test_wheel_venv/
+*.whl
+*.tar.gz
+
+# Documentation
+docs/_build/
+*.orig

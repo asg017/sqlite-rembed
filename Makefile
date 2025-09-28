@@ -41,7 +41,9 @@ TARGET_H_RELEASE=$(prefix)/release/sqlite-rembed.h
 TARGET_WHEELS=$(prefix)/debug/wheels
 TARGET_WHEELS_RELEASE=$(prefix)/release/wheels
 
-INTERMEDIATE_PYPACKAGE_EXTENSION=python/sqlite_rembed/sqlite_rembed/rembed0.$(LOADABLE_EXTENSION)
+PYTHON_PACKAGE_DIR=bindings/python
+PYTHON_MODULE_DIR=$(PYTHON_PACKAGE_DIR)/sqlite_rembed
+INTERMEDIATE_PYPACKAGE_EXTENSION=$(PYTHON_MODULE_DIR)/rembed0.$(LOADABLE_EXTENSION)
 
 ifdef target
 CARGO_TARGET=--target=$(target)
@@ -120,15 +122,51 @@ loadable-release: $(TARGET_LOADABLE_RELEASE)
 static: $(TARGET_STATIC) $(TARGET_H)
 static-release: $(TARGET_STATIC_RELEASE) $(TARGET_H_RELEASE)
 
-debug: loadable static python datasette
-release: loadable-release static-release python-release datasette-release
+debug: loadable static
+release: loadable-release static-release
 
 clean:
 	rm dist/*
 	cargo clean
 
-test-loadable:
-	$(PYTHON) tests/test-loadable.py
+test-loadable: loadable
+	$(PYTHON) examples/sql/basic.sql
+
+test-python: python
+	cd $(PYTHON_PACKAGE_DIR) && $(PYTHON) tests/test_basic.py
+
+# Python packaging targets
+python: $(TARGET_LOADABLE)
+	mkdir -p $(PYTHON_MODULE_DIR)
+	cp $(TARGET_LOADABLE) $(INTERMEDIATE_PYPACKAGE_EXTENSION)
+	@echo "✓ Copied extension to Python package"
+
+python-release: $(TARGET_LOADABLE_RELEASE)
+	mkdir -p $(PYTHON_MODULE_DIR)
+	cp $(TARGET_LOADABLE_RELEASE) $(INTERMEDIATE_PYPACKAGE_EXTENSION)
+	@echo "✓ Copied release extension to Python package"
+
+python-wheel: python-release
+	cd $(PYTHON_PACKAGE_DIR) && $(PYTHON) -m pip install --upgrade build
+	cd $(PYTHON_PACKAGE_DIR) && $(PYTHON) -m build --wheel
+	mkdir -p $(TARGET_WHEELS_RELEASE)
+	cp $(PYTHON_PACKAGE_DIR)/dist/*.whl $(TARGET_WHEELS_RELEASE)/
+	@echo "✓ Built Python wheel in $(TARGET_WHEELS_RELEASE)"
+
+python-sdist: python-release
+	cd $(PYTHON_PACKAGE_DIR) && $(PYTHON) -m pip install --upgrade build
+	cd $(PYTHON_PACKAGE_DIR) && $(PYTHON) -m build --sdist
+	@echo "✓ Built Python source distribution"
+
+python-install: python
+	cd $(PYTHON_PACKAGE_DIR) && $(PYTHON) -m pip install -e .
+	@echo "✓ Installed Python package in development mode"
+
+python-clean:
+	rm -rf $(PYTHON_PACKAGE_DIR)/build
+	rm -rf $(PYTHON_PACKAGE_DIR)/dist
+	rm -rf $(PYTHON_PACKAGE_DIR)/*.egg-info
+	rm -f $(INTERMEDIATE_PYPACKAGE_EXTENSION)
 
 publish-release:
 	./scripts/publish_release.sh
@@ -138,4 +176,5 @@ publish-release:
 	loadable loadable-release \
 	static static-release \
 	debug release \
+	python python-release python-wheel python-sdist python-install python-clean \
 	format version publish-release
